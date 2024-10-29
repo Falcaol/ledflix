@@ -7,6 +7,8 @@ from collections import defaultdict, OrderedDict
 from apscheduler.schedulers.background import BackgroundScheduler
 import database
 import os
+import re
+from sqlalchemy import desc
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'votre_clé_secrète_par_défaut')
@@ -92,14 +94,63 @@ def get_weekly_anime():
         return ordered_schedule
     return None
 
+def get_latest_episodes(page=1, per_page=9):
+    """Récupère les derniers épisodes avec les informations de leur anime"""
+    session = Session()
+    try:
+        # Calculer l'offset pour la pagination
+        offset = (page - 1) * per_page
+        
+        # Récupérer les épisodes avec leurs animes associés
+        episodes = session.query(Episode)\
+            .join(Anime)\
+            .order_by(desc(Episode.created_at))\
+            .offset(offset)\
+            .limit(per_page)\
+            .all()
+        
+        # Compter le nombre total d'épisodes pour la pagination
+        total_episodes = session.query(Episode).count()
+        total_pages = (total_episodes + per_page - 1) // per_page
+        
+        return {
+            'episodes': episodes,
+            'current_page': page,
+            'total_pages': total_pages,
+            'total_episodes': total_episodes
+        }
+    finally:
+        session.close()
+
 @app.route('/')
 def index():
     page = request.args.get('page', 1, type=int)
-    episodes_data = scrap.get_latest_episodes(page=page)
-    return render_template('index.html', 
+    episodes_data = get_latest_episodes(page=page)
+    
+    return render_template('index.html',
                          episodes=episodes_data['episodes'],
                          current_page=episodes_data['current_page'],
                          total_pages=episodes_data['total_pages'])
+
+def get_anime_with_episodes(anime_id):
+    """Récupère un anime avec tous ses épisodes triés"""
+    session = Session()
+    try:
+        anime = session.query(Anime)\
+            .filter_by(id=anime_id)\
+            .first()
+            
+        if anime:
+            # Trier les épisodes par numéro
+            anime.episodes.sort(key=lambda x: float(episode_number_filter(x) or 0))
+            
+            # Ajouter l'information si l'anime est en favoris
+            if 'user_id' in session:
+                anime.is_favorite = is_favorite(session['user_id'], anime.id)
+                
+        return anime
+    finally:
+        session.close()
 
 @app.route('/watch/<int:episode_id>')
 def watch_episode(episode_id):
@@ -235,12 +286,13 @@ def animes():
 
 @app.route('/anime/<int:anime_id>')
 def anime_details(anime_id):
-    anime_data = database.get_anime_episodes(anime_id)
-    if anime_data is None:
+    anime = get_anime_with_episodes(anime_id)
+    if anime is None:
         abort(404)
-    return render_template('anime_details.html', 
-                         anime=anime_data['anime'],
-                         episodes=anime_data['episodes'])
+        
+    return render_template('anime_details.html',
+                         anime=anime,
+                         is_favorite=getattr(anime, 'is_favorite', False))
 
 @app.route('/force-update')
 def force_update():
@@ -286,6 +338,37 @@ def send_message():
 @app.route('/health')
 def health_check():
     return jsonify({"status": "ok"}), 200
+
+@app.template_filter('episode_number')
+def episode_number_filter(episode):
+    """Extrait le numéro d'épisode du titre"""
+    import re
+    match = re.search(r'[-–]\s*(?:Episode)?\s*(\d+(?:\.\d+)?)', episode.title, re.IGNORECASE)
+    return match.group(1) if match else "?"
+
+@app.template_filter('format_date')
+def format_date_filter(date):
+    """Formate une date en français"""
+    if isinstance(date, datetime):
+        return date.strftime('%d/%m/%Y à %H:%M')
+    return date
+
+@app.context_processor
+def utility_processor():
+    """Ajoute des fonctions utiles disponibles dans tous les templates"""
+    def episode_count(anime):
+        return len(anime.episodes) if anime.episodes else 0
+        
+    def latest_episode(anime):
+        if not anime.episodes:
+            return None
+        return max(anime.episodes, key=lambda x: float(episode_number_filter(x) or 0))
+        
+    return dict(
+        episode_count=episode_count,
+        latest_episode=latest_episode,
+        format_date=format_date_filter
+    )
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

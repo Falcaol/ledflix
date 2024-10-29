@@ -68,8 +68,13 @@
                             <div class="mt-auto">
                                 <p class="card-text mb-2">
                                     <span class="badge badge-primary">
-                                        {{ anime.episode_count }} épisode{% if anime.episode_count > 1 %}s{% endif %}
+                                        {{ anime.episodes|length }} épisode{% if anime.episodes|length > 1 %}s{% endif %}
                                     </span>
+                                    {% if anime.episodes %}
+                                        <span class="badge badge-info">
+                                            Dernier : Ep. {{ anime.episodes|last|episode_number }}
+                                        </span>
+                                    {% endif %}
                                 </p>
                                 {% if session.user_id %}
                                     <button class="btn btn-favorite {% if anime.is_favorite %}active{% endif %}"

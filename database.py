@@ -108,19 +108,26 @@ Session = scoped_session(session_factory)
 
 def extract_anime_title(episode_title):
     import re
-    title = re.sub(r'episode\s*\d+.*', '', episode_title, flags=re.IGNORECASE)
+    # Supprimer le numéro d'épisode et VOSTFR/VF
+    title = re.sub(r'[-–]\s*(?:Episode)?\s*\d+(?:\.\d+)?.*$', '', episode_title, flags=re.IGNORECASE)
     title = re.sub(r'vostfr|vf', '', title, flags=re.IGNORECASE)
+    # Nettoyer les espaces supplémentaires
+    title = re.sub(r'\s+', ' ', title)
     return title.strip()
 
 def add_episode(episode_data):
     session = Session()
     try:
+        # Vérifier si l'épisode existe déjà
         existing_episode = session.query(Episode).filter_by(title=episode_data['title']).first()
         if not existing_episode:
+            # Extraire le titre de l'anime sans le numéro d'épisode
             anime_title = extract_anime_title(episode_data['title'])
             
+            # Chercher l'anime existant
             anime = session.query(Anime).filter_by(title=anime_title).first()
             if not anime:
+                # Créer un nouvel anime si n'existe pas
                 anime = Anime(
                     title=anime_title,
                     image=episode_data['image']
@@ -128,6 +135,7 @@ def add_episode(episode_data):
                 session.add(anime)
                 session.flush()
             
+            # Créer le nouvel épisode
             new_episode = Episode(
                 title=episode_data['title'],
                 link=episode_data['link'],
