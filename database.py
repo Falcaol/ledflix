@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, String, JSON, DateTime, Integer, ForeignKey
+from sqlalchemy import create_engine, Column, String, JSON, DateTime, Integer, ForeignKey, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, scoped_session
 from datetime import datetime
@@ -68,6 +68,18 @@ class WatchProgress(Base):
     episode_id = Column(Integer, ForeignKey('episodes.id'))
     timestamp = Column(Integer, default=0)  # Position en secondes
     last_watched = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship('User')
+    episode = relationship('Episode')
+
+class Rating(Base):
+    __tablename__ = 'ratings'
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    episode_id = Column(Integer, ForeignKey('episodes.id'))
+    rating = Column(Float)  # Pour permettre les demi-étoiles
+    created_at = Column(DateTime, default=datetime.utcnow)
     
     user = relationship('User')
     episode = relationship('Episode')
@@ -366,5 +378,56 @@ def get_watch_progress(user_id, episode_id):
         progress = session.query(WatchProgress).filter_by(
             user_id=user_id, episode_id=episode_id).first()
         return progress.timestamp if progress else 0
+    finally:
+        session.close()
+
+def save_rating(user_id, episode_id, rating):
+    session = Session()
+    try:
+        existing_rating = session.query(Rating).filter_by(
+            user_id=user_id, episode_id=episode_id).first()
+        
+        if existing_rating:
+            existing_rating.rating = rating
+        else:
+            new_rating = Rating(
+                user_id=user_id,
+                episode_id=episode_id,
+                rating=rating
+            )
+            session.add(new_rating)
+        
+        session.commit()
+        return True
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde de la note: {e}")
+        session.rollback()
+        return False
+    finally:
+        session.close()
+
+def get_episode_ratings(episode_id):
+    session = Session()
+    try:
+        ratings = session.query(Rating).filter_by(episode_id=episode_id).all()
+        if not ratings:
+            return {'average': 0, 'count': 0, 'user_rating': 0}
+            
+        total = sum(r.rating for r in ratings)
+        average = total / len(ratings)
+        
+        return {
+            'average': round(average * 2) / 2,  # Arrondir à la demi-étoile la plus proche
+            'count': len(ratings)
+        }
+    finally:
+        session.close()
+
+def get_user_rating(user_id, episode_id):
+    session = Session()
+    try:
+        rating = session.query(Rating).filter_by(
+            user_id=user_id, episode_id=episode_id).first()
+        return rating.rating if rating else 0
     finally:
         session.close()

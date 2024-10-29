@@ -9,6 +9,51 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/plyr@3.6.8/dist/plyr.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/plyr@3.6.8/dist/plyr.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+    .rating-container {
+        background-color: var(--bg-card);
+        padding: 20px;
+        border-radius: 15px;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+
+    .stars {
+        font-size: 24px;
+        cursor: pointer;
+        display: inline-block;
+    }
+
+    .stars .star {
+        color: #ccc;
+        transition: color 0.2s;
+        padding: 0 2px;
+    }
+
+    .stars .star.active {
+        color: #ffd700;
+    }
+
+    .stars .star.half {
+        position: relative;
+    }
+
+    .stars .star.half:before {
+        content: '\f089';
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 50%;
+        overflow: hidden;
+        color: #ffd700;
+    }
+
+    .rating-stats {
+        margin-top: 10px;
+        color: var(--text-secondary);
+    }
+    </style>
     <script>
     // Script pour bloquer les pop-ups
     function blockPopups() {
@@ -102,6 +147,19 @@
         </a>
     </div>
 
+    <div class="rating-container">
+        <h4>Noter cet épisode</h4>
+        <div class="stars" id="rating-stars">
+            {% for i in range(5) %}
+                <i class="star fas fa-star" data-rating="{{ i + 1 }}"></i>
+            {% endfor %}
+        </div>
+        <div class="rating-stats">
+            Moyenne : <span id="average-rating">{{ ratings.average }}</span>/5
+            (<span id="rating-count">{{ ratings.count }}</span> votes)
+        </div>
+    </div>
+
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Appliquer le blocage des pop-ups
@@ -147,6 +205,69 @@
                 });
             }
         }
+
+        const stars = document.querySelectorAll('.star');
+        const container = document.getElementById('rating-stars');
+        let userRating = {{ user_rating|default(0) }};
+        
+        function updateStars(rating) {
+            stars.forEach((star, index) => {
+                const position = index + 1;
+                
+                if (position <= rating) {
+                    star.classList.add('active');
+                } else if (position - 0.5 <= rating) {
+                    star.classList.add('half');
+                } else {
+                    star.classList.remove('active', 'half');
+                }
+            });
+        }
+        
+        // Initialiser les étoiles
+        updateStars(userRating);
+        
+        // Gérer le survol
+        container.addEventListener('mousemove', function(e) {
+            const star = e.target;
+            if (!star.classList.contains('star')) return;
+            
+            const rect = star.getBoundingClientRect();
+            const position = parseInt(star.dataset.rating);
+            const halfStar = e.clientX - rect.left < rect.width / 2;
+            
+            updateStars(halfStar ? position - 0.5 : position);
+        });
+        
+        // Réinitialiser au survol
+        container.addEventListener('mouseleave', function() {
+            updateStars(userRating);
+        });
+        
+        // Gérer le clic
+        container.addEventListener('click', function(e) {
+            const star = e.target;
+            if (!star.classList.contains('star')) return;
+            
+            const rect = star.getBoundingClientRect();
+            const position = parseInt(star.dataset.rating);
+            const rating = e.clientX - rect.left < rect.width / 2 ? position - 0.5 : position;
+            
+            fetch(`/rate/{{ request.view_args.episode_id }}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ rating: rating })
+            })
+            .then(response => response.json())
+            .then(data => {
+                userRating = rating;
+                document.getElementById('average-rating').textContent = data.average;
+                document.getElementById('rating-count').textContent = data.count;
+                updateStars(rating);
+            });
+        });
     });
     </script>
 

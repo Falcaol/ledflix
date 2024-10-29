@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, abort, redirect, url_for, flash, session
+from flask import Flask, render_template, request, abort, redirect, url_for, flash, session, jsonify
 from functools import wraps
 import scrap
 import requests
@@ -110,10 +110,18 @@ def watch_episode(episode_id):
     
     # Récupérer la progression si l'utilisateur est connecté
     progress = 0
+    user_rating = 0
     if 'user_id' in session:
         progress = database.get_watch_progress(session['user_id'], episode_id)
+        user_rating = database.get_user_rating(session['user_id'], episode_id)
     
-    return render_template('watch.html', episode=episode, progress=progress)
+    ratings = database.get_episode_ratings(episode_id)
+    
+    return render_template('watch.html', 
+                         episode=episode, 
+                         progress=progress,
+                         ratings=ratings,
+                         user_rating=user_rating)
 
 @app.route('/save-progress', methods=['POST'])
 @login_required
@@ -238,6 +246,20 @@ def anime_details(anime_id):
 def force_update():
     count = scrap.update_episodes()
     return f"Mise à jour effectuée : {count} nouveaux épisodes ajoutés"
+
+@app.route('/rate/<int:episode_id>', methods=['POST'])
+@login_required
+def rate_episode(episode_id):
+    data = request.get_json()
+    rating = data.get('rating')
+    
+    if rating is not None:
+        success = database.save_rating(session['user_id'], episode_id, rating)
+        if success:
+            ratings = database.get_episode_ratings(episode_id)
+            return jsonify(ratings)
+    
+    return {'error': 'Invalid rating'}, 400
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
