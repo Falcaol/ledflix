@@ -94,9 +94,12 @@
             const mainPlayer = players[0];
             const plyrInstance = new Plyr(mainPlayer);
             
-            {% if session.user_id %}
+            const savedProgress = parseInt("{{ progress|default(0) }}");
+            const episodeId = "{{ request.view_args.episode_id }}";
+            const isLoggedIn = {% if session.user_id %}true{% else %}false{% endif %};
+            
+            if (isLoggedIn) {
                 plyrInstance.on('ready', function() {
-                    const savedProgress = {{ progress|default(0) }};
                     if (savedProgress > 0) {
                         plyrInstance.currentTime = savedProgress;
                     }
@@ -107,19 +110,19 @@
                     const currentTime = Math.floor(plyrInstance.currentTime);
                     if (currentTime - lastSave >= 5) {
                         lastSave = currentTime;
-                        fetch('{{ url_for("save_progress") }}', {
+                        fetch("{{ url_for('save_progress') }}", {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                             },
                             body: JSON.stringify({
-                                episode_id: {{ request.view_args.episode_id }},
+                                episode_id: episodeId,
                                 timestamp: currentTime
                             })
                         });
                     }
                 });
-            {% endif %}
+            }
         }
     });
     </script>
