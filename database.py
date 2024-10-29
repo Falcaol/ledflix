@@ -84,6 +84,16 @@ class Rating(Base):
     user = relationship('User')
     episode = relationship('Episode')
 
+class ChatMessage(Base):
+    __tablename__ = 'chat_messages'
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'))
+    message = Column(String(500))
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship('User')
+
 # Configuration de la base de données
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///anime.db')
 if DATABASE_URL.startswith("postgres://"):
@@ -429,5 +439,43 @@ def get_user_rating(user_id, episode_id):
         rating = session.query(Rating).filter_by(
             user_id=user_id, episode_id=episode_id).first()
         return rating.rating if rating else 0
+    finally:
+        session.close()
+
+def save_chat_message(user_id, message):
+    session = Session()
+    try:
+        chat_message = ChatMessage(
+            user_id=user_id,
+            message=message
+        )
+        session.add(chat_message)
+        session.commit()
+        return True
+    except Exception as e:
+        print(f"Erreur lors de l'enregistrement du message: {e}")
+        session.rollback()
+        return False
+    finally:
+        session.close()
+
+def get_chat_messages(limit=50):
+    session = Session()
+    try:
+        messages = session.query(ChatMessage)\
+            .join(User)\
+            .order_by(ChatMessage.created_at.desc())\
+            .limit(limit)\
+            .all()
+            
+        return [
+            {
+                'id': msg.id,
+                'username': msg.user.username,
+                'message': msg.message,
+                'created_at': msg.created_at.strftime('%H:%M')
+            }
+            for msg in messages
+        ][::-1]  # Inverser pour avoir les plus anciens en premier
     finally:
         session.close()

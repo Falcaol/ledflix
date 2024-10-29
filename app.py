@@ -261,6 +261,28 @@ def rate_episode(episode_id):
     
     return {'error': 'Invalid rating'}, 400
 
+@app.route('/chat/messages')
+def get_messages():
+    messages = database.get_chat_messages()
+    return jsonify(messages)
+
+@app.route('/chat/send', methods=['POST'])
+@login_required
+def send_message():
+    data = request.get_json()
+    message = data.get('message', '').strip()
+    
+    if message:
+        if database.save_chat_message(session['user_id'], message):
+            return jsonify({
+                'success': True,
+                'username': session['username'],
+                'message': message,
+                'time': datetime.now().strftime('%H:%M')
+            })
+    
+    return jsonify({'success': False}), 400
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
