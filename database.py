@@ -27,26 +27,25 @@ class Anime(Base):
     __tablename__ = 'animes'
     
     id = Column(Integer, primary_key=True)
-    title = Column(String)
+    title = Column(String, nullable=False)
     english_title = Column(String)
     romaji_title = Column(String)
-    image = Column(String)
-    episodes = relationship("Episode", back_populates="anime", order_by="Episode.number")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    image_url = Column(String)
+    total_episodes = Column(Integer)
+    
+    episodes = relationship("Episode", back_populates="anime", 
+                          order_by="Episode.number")
 
 class Episode(Base):
     __tablename__ = 'episodes'
     
     id = Column(Integer, primary_key=True)
-    title = Column(String)
-    number = Column(Float)  # Float pour gérer les .5
-    anime_id = Column(Integer, ForeignKey('animes.id'))
+    title = Column(String, nullable=False)
+    number = Column(Float, nullable=False)
+    anime_id = Column(Integer, ForeignKey('animes.id'), nullable=False)
+    air_date = Column(DateTime)
+    
     anime = relationship("Anime", back_populates="episodes")
-    link = Column(String)
-    video_links = Column(String)
-    image = Column(String)
-    crunchyroll = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
 
 class User(Base):
     __tablename__ = 'users'

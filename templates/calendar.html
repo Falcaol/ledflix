@@ -2,17 +2,18 @@
 
 {% block content %}
 <div class="calendar">
-    {% for day, episodes in episodes_by_day.items() %}
+    {% for day, day_episodes in episodes_by_day.items() %}
     <div class="day-group">
         <h2>{{ day|format_date }}</h2>
         <div class="episodes-grid">
-            {% for episode in episodes %}
+            {% for episode in day_episodes %}
             <div class="episode-card">
                 <a href="{{ url_for('anime_details', anime_id=episode.anime.id) }}">
-                    <img src="{{ episode.anime.image }}" alt="{{ episode.anime.title }}">
+                    <img src="{{ episode.anime.image_url }}" alt="{{ episode.anime.title }}">
                     <div class="episode-info">
                         <h3>{{ episode.anime.title }}</h3>
                         <p>Episode {{ episode.number }}</p>
+                        <time>{{ episode.air_date|format_time }}</time>
                     </div>
                 </a>
             </div>

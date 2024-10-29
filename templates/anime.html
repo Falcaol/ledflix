@@ -3,7 +3,7 @@
 {% block content %}
 <div class="anime-details">
     <div class="anime-header">
-        <img src="{{ anime.image }}" alt="{{ anime.title }}">
+        <img src="{{ anime.image_url }}" alt="{{ anime.title }}">
         <div class="anime-info">
             <h1>{{ anime.title }}</h1>
             {% if anime.english_title %}
@@ -12,25 +12,26 @@
             {% if anime.romaji_title %}
             <p class="alt-title">{{ anime.romaji_title }}</p>
             {% endif %}
+            <p class="episodes-count">
+                {{ anime.total_episodes }} épisodes
+            </p>
         </div>
     </div>
 
     <div class="episodes-section">
-        {% for season, episodes in episodes_by_season.items() %}
-        <div class="season-group">
-            <h2>Saison {{ season }}</h2>
-            <div class="episodes-list">
-                {% for episode in episodes %}
-                <div class="episode-item">
-                    <a href="{{ url_for('watch_episode', episode_id=episode.id) }}">
-                        <span class="episode-number">{{ episode.number }}</span>
-                        <span class="episode-title">{{ episode.title }}</span>
-                    </a>
-                </div>
-                {% endfor %}
+        <div class="episodes-list">
+            {% for episode in episodes %}
+            <div class="episode-item">
+                <a href="{{ url_for('watch_episode', episode_id=episode.id) }}">
+                    <span class="episode-number">{{ episode.number }}</span>
+                    <span class="episode-title">{{ episode.title }}</span>
+                    {% if episode.air_date %}
+                    <time>{{ episode.air_date|format_date }}</time>
+                    {% endif %}
+                </a>
             </div>
+            {% endfor %}
         </div>
-        {% endfor %}
     </div>
 </div>
 {% endblock %} 

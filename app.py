@@ -41,11 +41,36 @@ scheduler.start()
 # Ajouter cette fonction pour initialiser les données
 def initialize_data():
     print("Initialisation des données...")
+    session = Session()
     try:
-        count = scrap.update_episodes()
-        print(f"Initialisation terminée : {count} épisodes ajoutés")
+        api_data = get_anime_schedule_data()
+        episodes_added = 0
+        
+        for anime_data in api_data:
+            try:
+                # Traiter l'anime
+                anime = process_anime_data(anime_data, session)
+                if not anime:
+                    continue
+                    
+                # Créer l'épisode
+                episode = create_episode(anime, anime_data, session)
+                if episode:
+                    episodes_added += 1
+                    print(f"Nouvel épisode ajouté: {episode.title}")
+                    
+            except Exception as e:
+                print(f"Erreur lors du traitement: {e}")
+                continue
+                
+        session.commit()
+        print(f"Initialisation terminée : {episodes_added} épisodes ajoutés")
+        
     except Exception as e:
-        print(f"Erreur lors de l'initialisation : {e}")
+        print(f"Erreur lors de l'initialisation: {e}")
+        session.rollback()
+    finally:
+        session.close()
 
 # Appeler la fonction d'initialisation au démarrage
 initialize_data()
@@ -272,18 +297,17 @@ def save_progress():
 def calendar():
     session = Session()
     try:
-        # Récupérer tous les épisodes des 7 derniers jours
-        seven_days_ago = datetime.now() - timedelta(days=7)
+        # Récupérer les épisodes des 7 prochains jours
         episodes = session.query(Episode)\
             .join(Episode.anime)\
-            .filter(Episode.created_at >= seven_days_ago)\
-            .order_by(Episode.created_at.desc())\
+            .filter(Episode.air_date >= datetime.utcnow())\
+            .order_by(Episode.air_date)\
             .all()
 
-        # Grouper les épisodes par jour
+        # Grouper par jour
         episodes_by_day = {}
         for episode in episodes:
-            day = episode.created_at.strftime('%Y-%m-%d')
+            day = episode.air_date.strftime('%Y-%m-%d')
             if day not in episodes_by_day:
                 episodes_by_day[day] = []
             episodes_by_day[day].append(episode)
@@ -397,17 +421,9 @@ def anime_details(anime_id):
         # Trier les épisodes par numéro
         episodes = sorted(anime.episodes, key=lambda x: x.number)
 
-        # Grouper les épisodes par saison si nécessaire
-        episodes_by_season = {}
-        for episode in episodes:
-            season = detect_season(episode.title)
-            if season not in episodes_by_season:
-                episodes_by_season[season] = []
-            episodes_by_season[season].append(episode)
-
         return render_template('anime.html',
                              anime=anime,
-                             episodes_by_season=episodes_by_season)
+                             episodes=episodes)
     finally:
         session.close()
 
@@ -525,18 +541,99 @@ def utility_processor():
         is_favorite=is_favorite
     )
 
-def match_episode_to_anime(episode_title, api_data):
-    """
-    Trouve l'anime correspondant à un épisode dans les données de l'API
-    """
-    best_match = None
-    best_ratio = 0
-    
-    # Nettoyer le titre de l'épisode (enlever le numéro d'épisode et VOSTFR)
-    clean_ep_title = clean_title(episode_title)
-    clean_ep_title = re.sub(r'\s*–?\s*(?:Episode)?\s*\d+(?:\.\d+)?\s*(?:VOSTFR|VF)?$', '', clean_ep_title, flags=re.IGNORECASE)
-    
-    for anime in api_data:
+ANIME_SCHEDULE_TOKEN = "r4hbdBLy5GHD4vo4XqDBkpR2ddtsYh"
+
+def get_anime_schedule_data():
+    """Récupère les données de l'API AnimeSchedule"""
+    try:
+        url = "https://animeschedule.net/api/v3/timetables/dub"
+        headers = {
+            "Authorization": f"Bearer {ANIME_SCHEDULE_TOKEN}"
+        }
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code != 200:
+            print(f"Erreur API: status code {response.status_code}")
+            return []
+            
+        return response.json()
+        
+    except Exception as e:
+        print(f"Erreur lors de la récupération des données: {e}")
+        return []
+
+def process_anime_data(anime_data, session):
+    """Traite les données d'un anime et crée/met à jour l'entrée en base"""
+    try:
+        # Rechercher l'anime existant
+        existing_anime = session.query(Anime).filter(
+            (Anime.title == anime_data['title']) |
+            (Anime.english_title == anime_data.get('english')) |
+            (Anime.romaji_title == anime_data.get('romaji'))
+        ).first()
+        
+        if existing_anime:
+            # Mettre à jour les informations
+            existing_anime.english_title = anime_data.get('english')
+            existing_anime.romaji_title = anime_data.get('romaji')
+            existing_anime.image_url = f"https://animeschedule.net/{anime_data.get('imageVersionRoute')}"
+            existing_anime.total_episodes = anime_data.get('episodes')
+            return existing_anime
+            
+        # Créer un nouvel anime
+        new_anime = Anime(
+            title=anime_data['title'],
+            english_title=anime_data.get('english'),
+            romaji_title=anime_data.get('romaji'),
+            image_url=f"https://animeschedule.net/{anime_data.get('imageVersionRoute')}",
+            total_episodes=anime_data.get('episodes')
+        )
+        session.add(new_anime)
+        session.flush()  # Pour obtenir l'ID
+        return new_anime
+        
+    except Exception as e:
+        print(f"Erreur lors du traitement de l'anime {anime_data.get('title')}: {e}")
+        return None
+
+def create_episode(anime, episode_data, session):
+    """Crée ou met à jour un épisode"""
+    try:
+        episode_number = episode_data.get('episodeNumber', 0)
+        air_date = datetime.strptime(episode_data['episodeDate'], '%Y-%m-%dT%H:%M:%SZ')
+        
+        # Vérifier si l'épisode existe déjà
+        existing_episode = session.query(Episode).filter_by(
+            anime_id=anime.id,
+            number=episode_number
+        ).first()
+        
+        if existing_episode:
+            # Mettre à jour les informations
+            existing_episode.air_date = air_date
+            return existing_episode
+            
+        # Créer le titre de l'épisode
+        episode_title = f"{anime.title} – {episode_number:02d} VOSTFR"
+        
+        # Créer un nouvel épisode
+        new_episode = Episode(
+            title=episode_title,
+            number=episode_number,
+            anime_id=anime.id,
+            air_date=air_date
+        )
+        session.add(new_episode)
+        return new_episode
+        
+    except Exception as e:
+        print(f"Erreur lors de la création de l'épisode {episode_number}: {e}")
+        return None
+
+def match_episode_to_anime(episode_title, anime_data):
+    """Trouve l'anime correspondant dans les données de l'API"""
+    for anime in anime_data:
+        # Vérifier les différents titres possibles
         titles_to_check = [
             anime.get('title', ''),
             anime.get('english', ''),
@@ -544,15 +641,10 @@ def match_episode_to_anime(episode_title, api_data):
         ]
         
         for title in titles_to_check:
-            if not title:
-                continue
-            ratio = SequenceMatcher(None, clean_ep_title.lower(), title.lower()).ratio()
-            if ratio > best_ratio and ratio > 0.8:
-                best_ratio = ratio
-                best_match = anime
-                break
-    
-    return best_match
+            if title and title.lower() in episode_title.lower():
+                return anime
+                
+    return None
 
 def process_new_episode(episode_title):
     """
@@ -629,6 +721,18 @@ def extract_episode_number(title):
         return float(match.group(1))
         
     return 0  # Valeur par défaut
+
+@app.template_filter('format_date')
+def format_date(date):
+    """Formate une date pour l'affichage"""
+    if isinstance(date, str):
+        date = datetime.strptime(date, '%Y-%m-%d')
+    return date.strftime('%d/%m/%Y')
+
+@app.template_filter('format_time')
+def format_time(date):
+    """Formate une heure pour l'affichage"""
+    return date.strftime('%H:%M')
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
