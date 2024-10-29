@@ -9,6 +9,7 @@ import database
 import os
 from difflib import SequenceMatcher
 import re
+import requests
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'votre_clé_secrète_par_défaut')
@@ -40,59 +41,50 @@ def initialize_data():
 initialize_data()
 
 def get_weekly_anime():
-    url = "https://animeschedule.net/api/v3/timetables/sub"
-    headers = {
-        "Authorization": "Bearer r4hbdBLy5GHD4vo4XqDBkpR2ddtsYh"
-    }
-    
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        animes = response.json()
-        weekly_schedule = defaultdict(list)
-        
-        # Dictionnaire de traduction des jours
-        days_translation = {
-            'Monday': 'Lundi',
-            'Tuesday': 'Mardi',
-            'Wednesday': 'Mercredi',
-            'Thursday': 'Jeudi',
-            'Friday': 'Vendredi',
-            'Saturday': 'Samedi',
-            'Sunday': 'Dimanche'
+    try:
+        url = "https://animeschedule.net/api/v3/timetables/sub"
+        headers = {
+            "Authorization": "Bearer r4hbdBLy5GHD4vo4XqDBkpR2ddtsYh"
         }
         
-        # Obtenir le jour actuel
-        today = datetime.now().strftime('%A')
-        
-        # Ordre des jours de la semaine en anglais
-        days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-        
-        # Réorganiser l'ordre pour commencer par aujourd'hui
-        today_index = days_order.index(today)
-        days_order = days_order[today_index:] + days_order[:today_index]
-        
-        # Remplir le planning
-        for anime in animes:
-            episode_date = datetime.strptime(anime['episodeDate'], '%Y-%m-%dT%H:%M:%SZ')
-            day_name = episode_date.strftime('%A')
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            animes = response.json()
+            weekly_schedule = defaultdict(list)
             
-            image_url = f"https://img.animeschedule.net/production/assets/public/img/{anime['imageVersionRoute']}"
-            
-            anime_info = {
-                'title': anime['title'],
-                'image': image_url,
-                'time': episode_date.strftime('%H:%M')
+            days_translation = {
+                'Monday': 'Lundi',
+                'Tuesday': 'Mardi',
+                'Wednesday': 'Mercredi',
+                'Thursday': 'Jeudi',
+                'Friday': 'Vendredi',
+                'Saturday': 'Samedi',
+                'Sunday': 'Dimanche'
             }
-            weekly_schedule[day_name].append(anime_info)
-        
-        # Créer un dictionnaire ordonné avec les jours traduits
-        ordered_schedule = OrderedDict()
-        for day in days_order:
-            if day in weekly_schedule:
-                ordered_schedule[days_translation[day]] = weekly_schedule[day]
             
-        return ordered_schedule
-    return None
+            for anime in animes:
+                air_date = datetime.strptime(anime['episodeDate'], '%Y-%m-%dT%H:%M:%SZ')
+                day_name = air_date.strftime('%A')
+                french_day = days_translation.get(day_name, day_name)
+                
+                weekly_schedule[french_day].append({
+                    'title': anime['title'],
+                    'episode': anime['episodeNumber'],
+                    'time': air_date.strftime('%H:%M'),
+                    'image': f"https://animeschedule.net/{anime['imageVersionRoute']}"
+                })
+            
+            # Trier par jour de la semaine
+            ordered_schedule = OrderedDict()
+            for day in ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']:
+                if weekly_schedule[day]:
+                    ordered_schedule[day] = sorted(weekly_schedule[day], key=lambda x: x['time'])
+            
+            return ordered_schedule
+            
+    except Exception as e:
+        print(f"Erreur lors de la récupération du calendrier: {e}")
+        return OrderedDict()
 
 @app.route('/')
 def index():
