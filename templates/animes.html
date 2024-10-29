@@ -25,20 +25,10 @@
                     <div class="row no-gutters">
                         <div class="col-md-3">
                             <img src="{{ anime.image }}" class="card-img" alt="{{ anime.title }}">
-                            {% if session.user_id %}
-                                <button class="btn btn-favorite {% if anime.id in favorites %}active{% endif %}"
-                                        onclick="toggleFavorite({{ anime.id }}, this)"
-                                        title="{% if anime.id in favorites %}Retirer des favoris{% else %}Ajouter aux favoris{% endif %}">
-                                    <i class="fas fa-heart"></i>
-                                </button>
-                            {% endif %}
                         </div>
                         <div class="col-md-9">
                             <div class="card-body">
                                 <h5 class="card-title">{{ anime.title }}</h5>
-                                {% if anime.english_title %}
-                                    <h6 class="card-subtitle mb-2 text-muted">{{ anime.english_title }}</h6>
-                                {% endif %}
                                 
                                 <div class="episode-list mt-3">
                                     <h6>Épisodes disponibles :</h6>
@@ -47,10 +37,7 @@
                                             {% for episode in anime.episodes %}
                                                 <a href="{{ url_for('watch', episode_id=episode.id) }}" 
                                                    class="list-group-item list-group-item-action">
-                                                    Episode {{ episode.number }} 
-                                                    {% if episode.title %}
-                                                        - {{ episode.title }}
-                                                    {% endif %}
+                                                    {{ episode.title }}
                                                 </a>
                                             {% endfor %}
                                         </div>
@@ -62,14 +49,9 @@
                                 <div class="mt-3">
                                     <p class="card-text">
                                         <small class="text-muted">
-                                            Prochain épisode : {{ anime.next_episode|default('Non programmé') }}
+                                            Prochain épisode : {{ anime.next_episode }}
                                         </small>
                                     </p>
-                                    {% if anime.crunchyroll %}
-                                        <a href="{{ anime.crunchyroll }}" target="_blank" class="btn btn-sm btn-warning">
-                                            <i class="fas fa-external-link-alt"></i> Voir sur Crunchyroll
-                                        </a>
-                                    {% endif %}
                                 </div>
                             </div>
                         </div>
