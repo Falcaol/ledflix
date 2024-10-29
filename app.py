@@ -149,31 +149,38 @@ def get_anime_info_from_api(title):
     try:
         url = "https://animeschedule.net/api/v3/anime"
         response = requests.get(url)
+        
         if response.status_code == 200:
-            data = response.json()
+            animes = response.json()  # C'est déjà une liste, pas besoin de ['data']
             
-            # Vérifier que data est une liste
-            if not isinstance(data, list):
-                print(f"Format de réponse API inattendu: {type(data)}")
-                return None
-                
             # Trouver l'anime le plus similaire
             best_match = None
             best_ratio = 0
             clean_search = clean_title(title).lower()
             
-            for anime in data:
-                if not isinstance(anime, dict) or 'name' not in anime:
-                    continue
-                    
-                ratio = SequenceMatcher(None, clean_search, anime['name'].lower()).ratio()
-                if ratio > best_ratio and ratio > 0.8:
-                    best_ratio = ratio
-                    best_match = anime
+            for anime in animes:
+                # Vérifier les différents titres possibles
+                titles_to_check = [
+                    anime.get('title', ''),
+                    anime.get('english', ''),
+                    anime.get('romaji', '')
+                ]
+                
+                for anime_title in titles_to_check:
+                    if not anime_title:
+                        continue
+                    ratio = SequenceMatcher(None, clean_search, 
+                                          anime_title.lower()).ratio()
+                    if ratio > best_ratio and ratio > 0.8:
+                        best_ratio = ratio
+                        best_match = anime
+                        break
             
             return best_match
+            
     except Exception as e:
         print(f"Erreur API AnimeSchedule: {e}")
+        
     return None
 
 def extract_episode_info(episode_title, anime_api_info):
