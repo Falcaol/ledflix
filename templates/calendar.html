@@ -115,6 +115,42 @@
     <div class="container">
         <h1 class="mt-4 mb-4">Planning des Sorties</h1>
         
+        <!-- Barre de recherche -->
+        <div class="search-container mb-4">
+            <form action="{{ url_for('calendar') }}" method="get" class="search-form">
+                <div class="input-group">
+                    <input type="text" 
+                           class="form-control search-input" 
+                           name="q" 
+                           placeholder="Rechercher un anime dans le calendrier..."
+                           value="{{ search_query if search_query else '' }}">
+                    <div class="input-group-append">
+                        <button class="btn btn-primary" type="submit">
+                            Rechercher
+                        </button>
+                        {% if search_query %}
+                            <a href="{{ url_for('calendar') }}" class="btn btn-secondary ml-2">
+                                Réinitialiser
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Message de résultat de recherche -->
+        {% if search_query %}
+            <div class="search-results mb-4">
+                {% if schedule %}
+                    <p class="text-muted">Résultats pour "{{ search_query }}"</p>
+                {% else %}
+                    <div class="alert alert-info">
+                        Aucun anime trouvé pour "{{ search_query }}"
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
+        
         {% if schedule %}
             {% for day, animes in schedule.items() %}
                 <div class="day-section">

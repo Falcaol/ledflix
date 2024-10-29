@@ -131,7 +131,23 @@ def save_progress():
 @app.route('/calendar')
 def calendar():
     weekly_anime = get_weekly_anime()
-    return render_template('calendar.html', schedule=weekly_anime)
+    search_query = request.args.get('q', '').strip()
+    
+    if search_query and weekly_anime:
+        # Filtrer les animes qui correspondent à la recherche
+        filtered_schedule = OrderedDict()
+        for day, animes in weekly_anime.items():
+            matching_animes = [
+                anime for anime in animes 
+                if search_query.lower() in anime['title'].lower()
+            ]
+            if matching_animes:
+                filtered_schedule[day] = matching_animes
+        weekly_anime = filtered_schedule if filtered_schedule else weekly_anime
+
+    return render_template('calendar.html', 
+                         schedule=weekly_anime,
+                         search_query=search_query)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
