@@ -128,16 +128,21 @@ def add_episode(episode_data):
 def get_all_episodes(page=1, per_page=9):
     session = Session()
     try:
-        offset = (page - 1) * per_page
+        # Calculer le total et le nombre de pages
         total = session.query(Episode).count()
+        total_pages = (total + per_page - 1) // per_page
+        
+        # Calculer l'offset pour la pagination
+        offset = (page - 1) * per_page
+        
+        # Récupérer les épisodes dans l'ordre décroissant de création
         episodes = session.query(Episode)\
             .order_by(Episode.created_at.desc())\
             .offset(offset)\
             .limit(per_page)\
             .all()
         
-        total_pages = (total + per_page - 1) // per_page
-        
+        # Convertir les épisodes en dictionnaire
         episodes_list = [
             {
                 'title': episode.title,
