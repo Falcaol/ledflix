@@ -17,35 +17,21 @@
                 <img src="{{ anime.image }}" class="img-fluid rounded" alt="{{ anime.title }}">
             </div>
             <div class="col-md-9">
-                <div class="d-flex justify-content-between align-items-start">
-                    <h1>{{ anime.title }}</h1>
-                    {% if session.user_id %}
-                        <button class="btn btn-favorite {% if is_favorite %}active{% endif %}"
-                                onclick="toggleFavorite({{ anime.id }}, this)"
-                                title="{% if is_favorite %}Retirer des favoris{% else %}Ajouter aux favoris{% endif %}">
-                            <i class="fas fa-heart"></i>
-                        </button>
-                    {% endif %}
-                </div>
-                <p>{{ anime.episodes|length }} épisode{% if anime.episodes|length > 1 %}s{% endif %} disponibles</p>
+                <h1>{{ anime.title }}</h1>
+                <p>{{ episodes|length }} épisodes disponibles</p>
             </div>
         </div>
 
         <h2 class="mb-4">Épisodes</h2>
         <div class="row">
-            {% for episode in anime.episodes|sort(attribute='episode_number') %}
+            {% for episode in episodes %}
                 <div class="col-md-4 mb-4">
                     <div class="card anime-card">
                         <img src="{{ episode.image }}" class="card-img-top" alt="{{ episode.title }}">
                         <div class="card-body">
                             <h5 class="card-title">
-                                <a href="{{ url_for('watch_episode', episode_id=episode.id) }}">
-                                    Épisode {{ episode|episode_number }}
-                                </a>
+                                <a href="{{ url_for('watch_episode', episode_id=loop.index0) }}">{{ episode.title }}</a>
                             </h5>
-                            <p class="card-text">
-                                <small class="text-muted">Ajouté le {{ episode.created_at.strftime('%d/%m/%Y') }}</small>
-                            </p>
                         </div>
                     </div>
                 </div>

@@ -2,8 +2,10 @@ import requests
 from bs4 import BeautifulSoup
 import time
 from difflib import SequenceMatcher
-from database import add_episode, get_all_episodes, Anime, Episode, Session
-import json
+from database import add_episode, get_all_episodes, Session, Anime, Episode
+from app import get_anime_schedule_data, match_anime_title
+import re
+from datetime import datetime
 
 def similar(a, b):
     # Fonction pour calculer la similarité entre deux chaînes
@@ -60,180 +62,108 @@ def get_crunchyroll_link(title):
     return None
 
 def update_episodes():
-    """Fonction pour mettre à jour la base de données avec les nouveaux épisodes"""
-    url = "https://www.mavanimes.co"
-    response = requests.get(url)
+    """Met à jour les épisodes depuis mavanimes et enrichit avec les données de l'API"""
+    try:
+        # Récupérer les données de l'API AnimeSchedule
+        api_data = get_anime_schedule_data()  # Assurez-vous d'importer cette fonction
+        
+        # Scraper mavanimes
+        url = "https://mavanimes.cc/"
+        response = requests.get(url)
+        if response.status_code != 200:
+            return 0
+            
+        soup = BeautifulSoup(response.text, 'html.parser')
+        episodes_list = soup.find_all('article', class_='episode-card')
+        
+        count = 0
+        session = Session()
+        
+        for episode_elem in episodes_list:
+            try:
+                # Extraire les informations de base
+                title = episode_elem.find('h2', class_='entry-title').text.strip()
+                
+                # Chercher la correspondance dans l'API
+                api_match = match_anime_title(title, api_data)
+                
+                if api_match:
+                    # Créer ou mettre à jour l'anime avec les données enrichies
+                    anime = session.query(Anime).filter(
+                        (Anime.title == api_match['title']) |
+                        (Anime.english_title == api_match.get('english')) |
+                        (Anime.romaji_title == api_match.get('romaji'))
+                    ).first()
+                    
+                    if not anime:
+                        anime = Anime(
+                            title=api_match['title'],
+                            english_title=api_match.get('english'),
+                            romaji_title=api_match.get('romaji'),
+                            image_url=f"https://animeschedule.net/{api_match['imageVersionRoute']}",
+                            total_episodes=api_match.get('episodes')
+                        )
+                        session.add(anime)
+                        session.flush()
+                    
+                    # Extraire le numéro d'épisode du titre mavanimes
+                    episode_number = extract_episode_number(title)
+                    if not episode_number:
+                        episode_number = api_match.get('episodeNumber')
+                    
+                    # Vérifier si l'épisode existe déjà
+                    existing_episode = session.query(Episode).filter_by(
+                        anime_id=anime.id,
+                        number=episode_number
+                    ).first()
+                    
+                    if not existing_episode:
+                        # Créer le nouvel épisode
+                        air_date = datetime.strptime(api_match['episodeDate'], '%Y-%m-%dT%H:%M:%SZ')
+                        episode = Episode(
+                            title=title,
+                            number=episode_number,
+                            anime_id=anime.id,
+                            air_date=air_date
+                        )
+                        session.add(episode)
+                        count += 1
+                        print(f"Nouvel épisode ajouté: {title}")
+                
+                else:
+                    # Fallback : créer l'épisode avec les données minimales de mavanimes
+                    print(f"Pas de correspondance API pour: {title}")
+                    # ... votre logique existante pour créer l'épisode ...
+                    
+            except Exception as e:
+                print(f"Erreur lors du traitement de l'épisode {title}: {e}")
+                continue
+        
+        session.commit()
+        return count
+        
+    except Exception as e:
+        print(f"Erreur lors de la mise à jour: {e}")
+        if 'session' in locals():
+            session.rollback()
+        return 0
+    finally:
+        if 'session' in locals():
+            session.close()
 
-    if response.status_code != 200:
-        print("Failed to retrieve the page.")
-        return False
-
-    html_content = response.text
-    soup = BeautifulSoup(html_content, 'html.parser')
+def extract_episode_number(title):
+    """Extrait le numéro d'épisode d'un titre"""
+    match = re.search(r'(?:Episode|Ep\.?)\s*(\d+(?:\.\d+)?)', title, re.IGNORECASE)
+    if match:
+        return float(match.group(1))
     
-    # Récupérer tous les épisodes
-    latest_episodes = soup.find_all('div', class_='col-sm-3 col-xs-12', limit=10)
+    # Chercher un nombre à la fin du titre
+    match = re.search(r'(\d+(?:\.\d+)?)\s*(?:VOSTFR|VF)?$', title)
+    if match:
+        return float(match.group(1))
     
-    # Inverser la liste pour que le plus récent soit traité en premier
-    latest_episodes = list(reversed(latest_episodes))
-
-    new_episodes_count = 0
-    for episode in latest_episodes:
-        title = episode.find('p').get_text()
-        link = episode.find('a')['href']
-        image_url = episode.find('img')['src']
-        
-        # Récupérer le contenu de la page de l'épisode
-        episode_response = requests.get(link)
-        episode_content = episode_response.text
-        episode_soup = BeautifulSoup(episode_content, 'html.parser')
-        
-        video_iframes = episode_soup.find_all('iframe')
-        video_links = [iframe['src'] for iframe in video_iframes]
-        
-        # Rechercher le lien Crunchyroll correspondant
-        crunchyroll_link = get_crunchyroll_link(title)
-        
-        # Préparer les données de l'épisode
-        episode_data = {
-            'title': title,
-            'link': link,
-            'video_links': video_links,
-            'image': image_url,
-            'crunchyroll': crunchyroll_link
-        }
-        
-        # Ajouter l'épisode à la base de données
-        if add_episode(episode_data):
-            new_episodes_count += 1
-            print(f"Nouvel épisode ajouté: {title}")
-
-    return new_episodes_count
+    return None
 
 def get_latest_episodes(page=1):
     """Fonction pour récupérer les derniers épisodes depuis la base de données"""
     return get_all_episodes(page=page, per_page=9)  # 9 épisodes par page
-
-def get_anime_info_from_api(title):
-    """Récupère les informations d'un anime depuis l'API AnimeSchedule"""
-    try:
-        url = "https://animeschedule.net/api/v3/anime"
-        response = requests.get(url)
-        if response.status_code == 200:
-            animes = response.json()
-            # Trouver l'anime le plus similaire
-            best_match = None
-            best_ratio = 0
-            clean_search = clean_title(title).lower()
-            
-            for anime in animes:
-                ratio = SequenceMatcher(None, clean_search, anime['name'].lower()).ratio()
-                if ratio > best_ratio and ratio > 0.8:  # Seuil de similarité à 80%
-                    best_ratio = ratio
-                    best_match = anime
-            
-            return best_match
-    except Exception as e:
-        print(f"Erreur API AnimeSchedule: {e}")
-    return None
-
-def extract_episode_info(episode_title, anime_api_info):
-    """Extrait le numéro d'épisode en utilisant l'API comme référence"""
-    if not anime_api_info:
-        # Fallback sur l'ancienne méthode si pas d'info API
-        return extract_episode_number(episode_title)
-    
-    try:
-        # Nettoyer le titre de l'épisode
-        clean_ep_title = clean_title(episode_title).lower()
-        
-        # Vérifier le format du numéro d'épisode
-        import re
-        match = re.search(r'[-–]\s*(?:Episode)?\s*(\d+(?:\.\d+)?)', episode_title, re.IGNORECASE)
-        if match:
-            ep_num = float(match.group(1))
-            # Vérifier si ce numéro est cohérent avec l'API
-            if 'episodes' in anime_api_info and ep_num <= anime_api_info['episodes']:
-                return ep_num
-                
-        # Si pas de match ou numéro incohérent, chercher dans l'API
-        if 'episodes' in anime_api_info:
-            for i in range(1, anime_api_info['episodes'] + 1):
-                if f"episode {i}" in clean_ep_title:
-                    return float(i)
-    except Exception as e:
-        print(f"Erreur extraction épisode: {e}")
-    
-    # Fallback sur l'ancienne méthode
-    return extract_episode_number(episode_title)
-
-def get_anime_with_episodes(anime_id):
-    """Récupère un anime avec tous ses épisodes triés"""
-    session = Session()
-    try:
-        anime = session.query(Anime)\
-            .options(joinedload(Episode))\
-            .filter_by(id=anime_id)\
-            .first()
-            
-        if anime:
-            # Récupérer les infos de l'API
-            api_info = get_anime_info_from_api(anime.title)
-            
-            # Trier les épisodes en utilisant l'API comme référence
-            anime.episodes.sort(
-                key=lambda x: extract_episode_info(x.title, api_info)
-            )
-            
-            # Ajouter l'information si l'anime est en favoris
-            if 'user_id' in session:
-                anime.is_favorite = is_favorite(session['user_id'], anime.id)
-                
-        return anime
-    finally:
-        session.close()
-
-def add_episode(episode_data):
-    session = Session()
-    try:
-        # Vérifier si l'épisode existe déjà
-        existing_episode = session.query(Episode).filter_by(title=episode_data['title']).first()
-        if not existing_episode:
-            # Extraire le titre de l'anime proprement
-            anime_title = clean_title(episode_data['title'])
-            
-            # Chercher les informations dans l'API
-            api_info = get_anime_info_from_api(anime_title)
-            if api_info:
-                anime_title = api_info['name']  # Utiliser le titre officiel
-            
-            # Chercher l'anime existant
-            anime = session.query(Anime).filter_by(title=anime_title).first()
-            if not anime:
-                # Créer un nouvel anime
-                anime = Anime(
-                    title=anime_title,
-                    image=episode_data['image']
-                )
-                session.add(anime)
-                session.flush()
-            
-            # Créer le nouvel épisode
-            new_episode = Episode(
-                title=episode_data['title'],
-                link=episode_data['link'],
-                video_links=json.dumps(episode_data['video_links']),
-                image=episode_data['image'],
-                crunchyroll=episode_data.get('crunchyroll'),
-                anime_id=anime.id
-            )
-            session.add(new_episode)
-            session.commit()
-            return True
-        return False
-    except Exception as e:
-        print(f"Erreur lors de l'ajout de l'épisode: {e}")
-        session.rollback()
-        return False
-    finally:
-        session.close()

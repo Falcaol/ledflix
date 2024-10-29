@@ -1,25 +1,167 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendrier des Sorties</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .day-header {
+            background: var(--bg-card);
+            padding: 20px;
+            border-radius: 15px;
+            margin: 2rem 0 1.5rem;
+            border-left: 5px solid var(--accent-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
 
-{% block content %}
-<div class="calendar">
-    {% for day, day_episodes in episodes_by_day.items() %}
-    <div class="day-group">
-        <h2>{{ day|format_date }}</h2>
-        <div class="episodes-grid">
-            {% for episode in day_episodes %}
-            <div class="episode-card">
-                <a href="{{ url_for('anime_details', anime_id=episode.anime.id) }}">
-                    <img src="{{ episode.anime.image_url }}" alt="{{ episode.anime.title }}">
-                    <div class="episode-info">
-                        <h3>{{ episode.anime.title }}</h3>
-                        <p>Episode {{ episode.number }}</p>
-                        <time>{{ episode.air_date|format_time }}</time>
+        .day-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 10px;
+        }
+
+        .calendar-card {
+            background-color: var(--bg-card);
+            border-radius: 15px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            height: 100%;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .calendar-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .calendar-image {
+            height: 250px;
+            width: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .calendar-card:hover .calendar-image {
+            transform: scale(1.05);
+        }
+
+        .calendar-content {
+            padding: 1.25rem;
+        }
+
+        .calendar-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--text-primary);
+            line-height: 1.4;
+        }
+
+        .time-badge {
+            background-color: var(--accent-color);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            display: inline-block;
+        }
+
+        .episode-count {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    {% include 'navbar.html' %}
+
+    <div class="container">
+        <h1 class="mt-4 mb-4">Planning des Sorties</h1>
+        
+        <!-- Barre de recherche -->
+        <div class="search-container mb-4">
+            <form action="{{ url_for('calendar') }}" method="get" class="search-form">
+                <div class="input-group">
+                    <input type="text" 
+                           class="form-control search-input" 
+                           name="q" 
+                           placeholder="Rechercher un anime dans le calendrier..."
+                           value="{{ search_query if search_query else '' }}">
+                    <div class="input-group-append">
+                        <button class="btn btn-primary" type="submit">
+                            Rechercher
+                        </button>
+                        {% if search_query %}
+                            <a href="{{ url_for('calendar') }}" class="btn btn-secondary ml-2">
+                                Réinitialiser
+                            </a>
+                        {% endif %}
                     </div>
-                </a>
-            </div>
-            {% endfor %}
+                </div>
+            </form>
         </div>
+
+        <!-- Message de résultat de recherche -->
+        {% if search_query %}
+            <div class="search-results mb-4">
+                {% if schedule %}
+                    <p class="text-muted">Résultats pour "{{ search_query }}"</p>
+                {% else %}
+                    <div class="alert alert-info">
+                        Aucun anime trouvé pour "{{ search_query }}"
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
+        
+        {% if schedule %}
+            {% for day, animes in schedule.items() %}
+                <div class="day-section">
+                    <div class="day-header">
+                        <h2 class="day-title">{{ day }}</h2>
+                        <span class="episode-count">{{ animes|length }} animes</span>
+                    </div>
+                    <div class="calendar-grid">
+                        {% for anime in animes %}
+                            <div class="calendar-card">
+                                <div class="position-relative">
+                                    <img src="{{ anime.image }}" class="calendar-image" alt="{{ anime.title }}">
+                                </div>
+                                <div class="calendar-content">
+                                    <h3 class="calendar-title">{{ anime.title }}</h3>
+                                    <span class="time-badge">{{ anime.time }}</span>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="alert alert-warning">
+                Impossible de charger le calendrier pour le moment.
+            </div>
+        {% endif %}
     </div>
-    {% endfor %}
-</div>
-{% endblock %} 
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html> 

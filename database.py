@@ -1,15 +1,4 @@
-from sqlalchemy import (
-    create_engine, 
-    Column, 
-    String, 
-    JSON, 
-    DateTime, 
-    Integer, 
-    ForeignKey, 
-    Float,
-    desc,
-    func
-)
+from sqlalchemy import create_engine, Column, String, JSON, DateTime, Integer, ForeignKey, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, scoped_session
 from datetime import datetime
@@ -17,7 +6,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import json
 import os
 from dotenv import load_dotenv
-import re
 
 load_dotenv()
 
@@ -26,27 +14,24 @@ Base = declarative_base()
 class Anime(Base):
     __tablename__ = 'animes'
     
-    id = Column(Integer, primary_key=True)
-    title = Column(String, nullable=False)
-    english_title = Column(String)
-    romaji_title = Column(String)
-    image_url = Column(String)
-    total_episodes = Column(Integer)
-    
-    episodes = relationship("Episode", back_populates="anime", 
-                          order_by="Episode.number")
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String, unique=True)
+    image = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    episodes = relationship('Episode', back_populates='anime')
 
 class Episode(Base):
     __tablename__ = 'episodes'
     
-    id = Column(Integer, primary_key=True)
-    title = Column(String, nullable=False)
-    number = Column(Float, nullable=False)
-    anime_id = Column(Integer, ForeignKey('animes.id'), nullable=False)
-    air_date = Column(DateTime)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String, unique=True)
+    link = Column(String)
+    video_links = Column(String)
+    image = Column(String)
+    crunchyroll = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
-    anime = relationship("Anime", back_populates="episodes")
+    anime_id = Column(Integer, ForeignKey('animes.id'))
+    anime = relationship('Anime', back_populates='episodes')
 
 class User(Base):
     __tablename__ = 'users'
@@ -110,12 +95,11 @@ class ChatMessage(Base):
     user = relationship('User')
 
 # Configuration de la base de données
-DATABASE_URL = os.environ.get('DATABASE_URL')
-if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
-    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///anime.db')
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(DATABASE_URL or 'sqlite:///animestream.db')
-Session = scoped_session(sessionmaker(bind=engine))
+engine = create_engine(DATABASE_URL)
 Base.metadata.create_all(engine)
 
 # Créer une session thread-safe
@@ -124,26 +108,19 @@ Session = scoped_session(session_factory)
 
 def extract_anime_title(episode_title):
     import re
-    # Supprimer le numéro d'épisode et VOSTFR/VF
-    title = re.sub(r'[-–]\s*(?:Episode)?\s*\d+(?:\.\d+)?.*$', '', episode_title, flags=re.IGNORECASE)
+    title = re.sub(r'episode\s*\d+.*', '', episode_title, flags=re.IGNORECASE)
     title = re.sub(r'vostfr|vf', '', title, flags=re.IGNORECASE)
-    # Nettoyer les espaces supplémentaires
-    title = re.sub(r'\s+', ' ', title)
     return title.strip()
 
 def add_episode(episode_data):
     session = Session()
     try:
-        # Vérifier si l'épisode existe déjà
         existing_episode = session.query(Episode).filter_by(title=episode_data['title']).first()
         if not existing_episode:
-            # Extraire le titre de l'anime sans le numéro d'épisode
             anime_title = extract_anime_title(episode_data['title'])
             
-            # Chercher l'anime existant
             anime = session.query(Anime).filter_by(title=anime_title).first()
             if not anime:
-                # Créer un nouvel anime si n'existe pas
                 anime = Anime(
                     title=anime_title,
                     image=episode_data['image']
@@ -151,7 +128,6 @@ def add_episode(episode_data):
                 session.add(anime)
                 session.flush()
             
-            # Créer le nouvel épisode
             new_episode = Episode(
                 title=episode_data['title'],
                 link=episode_data['link'],
@@ -441,23 +417,28 @@ def save_rating(user_id, episode_id, rating):
         session.close()
 
 def get_episode_ratings(episode_id):
-    """Récupère toutes les notes pour un épisode"""
     session = Session()
     try:
-        return session.query(Rating)\
-            .options(joinedload(Rating.user))\
-            .filter_by(episode_id=episode_id)\
-            .all()
+        ratings = session.query(Rating).filter_by(episode_id=episode_id).all()
+        if not ratings:
+            return {'average': 0, 'count': 0, 'user_rating': 0}
+            
+        total = sum(r.rating for r in ratings)
+        average = total / len(ratings)
+        
+        return {
+            'average': round(average * 2) / 2,  # Arrondir à la demi-étoile la plus proche
+            'count': len(ratings)
+        }
     finally:
         session.close()
 
 def get_user_rating(user_id, episode_id):
-    """Récupère la note d'un utilisateur pour un épisode"""
     session = Session()
     try:
-        return session.query(Rating)\
-            .filter_by(user_id=user_id, episode_id=episode_id)\
-            .first()
+        rating = session.query(Rating).filter_by(
+            user_id=user_id, episode_id=episode_id).first()
+        return rating.rating if rating else 0
     finally:
         session.close()
 
