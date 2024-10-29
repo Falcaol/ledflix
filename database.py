@@ -438,28 +438,23 @@ def save_rating(user_id, episode_id, rating):
         session.close()
 
 def get_episode_ratings(episode_id):
+    """Récupère toutes les notes pour un épisode"""
     session = Session()
     try:
-        ratings = session.query(Rating).filter_by(episode_id=episode_id).all()
-        if not ratings:
-            return {'average': 0, 'count': 0, 'user_rating': 0}
-            
-        total = sum(r.rating for r in ratings)
-        average = total / len(ratings)
-        
-        return {
-            'average': round(average * 2) / 2,  # Arrondir à la demi-étoile la plus proche
-            'count': len(ratings)
-        }
+        return session.query(Rating)\
+            .options(joinedload(Rating.user))\
+            .filter_by(episode_id=episode_id)\
+            .all()
     finally:
         session.close()
 
 def get_user_rating(user_id, episode_id):
+    """Récupère la note d'un utilisateur pour un épisode"""
     session = Session()
     try:
-        rating = session.query(Rating).filter_by(
-            user_id=user_id, episode_id=episode_id).first()
-        return rating.rating if rating else 0
+        return session.query(Rating)\
+            .filter_by(user_id=user_id, episode_id=episode_id)\
+            .first()
     finally:
         session.close()
 

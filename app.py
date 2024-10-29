@@ -5,7 +5,7 @@ import requests
 from datetime import datetime
 from collections import defaultdict, OrderedDict
 from apscheduler.schedulers.background import BackgroundScheduler
-from database import Session, Anime, Episode, Favorite
+from database import Session, Anime, Episode, Favorite, get_episode_ratings, get_user_rating
 import os
 import re
 from sqlalchemy import desc
@@ -15,9 +15,14 @@ from sqlalchemy import or_
 from difflib import SequenceMatcher
 import flask
 from flask import session as flask_session
+from api import AnimeScheduleAPI
+import logging
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'votre_clé_secrète_par_défaut')
+
+# Initialisation de l'API
+anime_api = AnimeScheduleAPI()
 
 # Définir le décorateur login_required avant de l'utiliser
 def login_required(f):
@@ -146,20 +151,25 @@ def get_anime_info_from_api(title):
         response = requests.get(url)
         if response.status_code == 200:
             data = response.json()
-            # L'API retourne une liste d'animes
-            animes = data['data'] if isinstance(data, dict) and 'data' in data else []
             
+            # Vérifier que data est une liste
+            if not isinstance(data, list):
+                print(f"Format de réponse API inattendu: {type(data)}")
+                return None
+                
             # Trouver l'anime le plus similaire
             best_match = None
             best_ratio = 0
             clean_search = clean_title(title).lower()
             
-            for anime in animes:
-                if isinstance(anime, dict) and 'name' in anime:
-                    ratio = SequenceMatcher(None, clean_search, anime['name'].lower()).ratio()
-                    if ratio > best_ratio and ratio > 0.8:
-                        best_ratio = ratio
-                        best_match = anime
+            for anime in data:
+                if not isinstance(anime, dict) or 'name' not in anime:
+                    continue
+                    
+                ratio = SequenceMatcher(None, clean_search, anime['name'].lower()).ratio()
+                if ratio > best_ratio and ratio > 0.8:
+                    best_ratio = ratio
+                    best_match = anime
             
             return best_match
     except Exception as e:
@@ -195,34 +205,48 @@ def get_anime_with_episodes(anime_id):
             .first()
             
         if anime and anime.episodes:
+            # Récupérer les infos de l'API avec cache
+            api_info = anime_api.get_anime_info(anime.title)
+            
             # Trier les épisodes
-            anime.episodes.sort(key=lambda x: extract_episode_number(x.title))
+            anime.episodes.sort(
+                key=lambda x: extract_episode_info(x.title, api_info)
+            )
             
         return anime
+    except Exception as e:
+        logging.error(f"Erreur lors de la récupération de l'anime {anime_id}: {e}")
+        return None
     finally:
         session.close()
 
 @app.route('/watch/<int:episode_id>')
 def watch_episode(episode_id):
-    episodes_data = scrap.get_latest_episodes()
-    if episode_id >= len(episodes_data['episodes']):
-        abort(404)
-    episode = episodes_data['episodes'][episode_id]
-    
-    # Récupérer la progression si l'utilisateur est connecté
-    progress = 0
-    user_rating = 0
-    if 'user_id' in session:
-        progress = database.get_watch_progress(session['user_id'], episode_id)
-        user_rating = database.get_user_rating(session['user_id'], episode_id)
-    
-    ratings = database.get_episode_ratings(episode_id)
-    
-    return render_template('watch.html', 
-                         episode=episode, 
-                         progress=progress,
-                         ratings=ratings,
-                         user_rating=user_rating)
+    session = Session()
+    try:
+        episode = session.query(Episode)\
+            .options(joinedload(Episode.anime))\
+            .filter_by(id=episode_id)\
+            .first()
+            
+        if not episode:
+            flash('Épisode non trouvé', 'error')
+            return redirect(url_for('index'))
+            
+        # Récupérer les notes
+        ratings = get_episode_ratings(episode_id)
+        user_rating = None
+        
+        # Si l'utilisateur est connecté, récupérer sa note
+        if 'user_id' in flask.session:
+            user_rating = get_user_rating(flask.session['user_id'], episode_id)
+            
+        return render_template('watch.html',
+                             episode=episode,
+                             ratings=ratings,
+                             user_rating=user_rating)
+    finally:
+        session.close()
 
 @app.route('/save-progress', methods=['POST'])
 @login_required
