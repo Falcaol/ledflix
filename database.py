@@ -1,4 +1,15 @@
-from sqlalchemy import create_engine, Column, String, JSON, DateTime, Integer, ForeignKey, Float
+from sqlalchemy import (
+    create_engine, 
+    Column, 
+    String, 
+    JSON, 
+    DateTime, 
+    Integer, 
+    ForeignKey, 
+    Float,
+    desc,
+    func
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, scoped_session
 from datetime import datetime
@@ -6,6 +17,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import json
 import os
 from dotenv import load_dotenv
+import re
 
 load_dotenv()
 
@@ -95,11 +107,12 @@ class ChatMessage(Base):
     user = relationship('User')
 
 # Configuration de la base de données
-DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///anime.db')
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL and DATABASE_URL.startswith('postgres://'):
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL or 'sqlite:///animestream.db')
+Session = scoped_session(sessionmaker(bind=engine))
 Base.metadata.create_all(engine)
 
 # Créer une session thread-safe

@@ -5,10 +5,11 @@ import requests
 from datetime import datetime
 from collections import defaultdict, OrderedDict
 from apscheduler.schedulers.background import BackgroundScheduler
-import database
+from database import Session, Anime, Episode
 import os
 import re
 from sqlalchemy import desc
+from utils import clean_title, extract_episode_number, format_date
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'votre_clé_secrète_par_défaut')
@@ -364,10 +365,24 @@ def utility_processor():
             return None
         return max(anime.episodes, key=lambda x: float(episode_number_filter(x) or 0))
         
+    def get_user_rating(episode_id):
+        if 'user_id' not in session:
+            return 0
+        db_session = Session()
+        try:
+            rating = db_session.query(Rating)\
+                .filter_by(user_id=session['user_id'], episode_id=episode_id)\
+                .first()
+            return rating.rating if rating else 0
+        finally:
+            db_session.close()
+            
     return dict(
         episode_count=episode_count,
         latest_episode=latest_episode,
-        format_date=format_date_filter
+        format_date=format_date_filter,
+        get_user_rating=get_user_rating,
+        is_favorite=is_favorite
     )
 
 if __name__ == '__main__':
