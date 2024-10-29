@@ -10,6 +10,7 @@ import os
 import re
 from sqlalchemy import desc
 from utils import clean_title, extract_episode_number, format_date
+from sqlalchemy.orm import joinedload
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'votre_clé_secrète_par_défaut')
@@ -104,6 +105,7 @@ def get_latest_episodes(page=1, per_page=9):
         
         # Récupérer les épisodes avec leurs animes associés
         episodes = session.query(Episode)\
+            .options(joinedload(Episode.anime))\
             .join(Anime)\
             .order_by(desc(Episode.created_at))\
             .offset(offset)\
