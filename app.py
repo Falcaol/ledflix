@@ -36,10 +36,21 @@ def get_weekly_anime():
         animes = response.json()
         weekly_schedule = defaultdict(list)
         
+        # Dictionnaire de traduction des jours
+        days_translation = {
+            'Monday': 'Lundi',
+            'Tuesday': 'Mardi',
+            'Wednesday': 'Mercredi',
+            'Thursday': 'Jeudi',
+            'Friday': 'Vendredi',
+            'Saturday': 'Samedi',
+            'Sunday': 'Dimanche'
+        }
+        
         # Obtenir le jour actuel
         today = datetime.now().strftime('%A')
         
-        # Ordre des jours de la semaine
+        # Ordre des jours de la semaine en anglais
         days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
         
         # Réorganiser l'ordre pour commencer par aujourd'hui
@@ -60,11 +71,11 @@ def get_weekly_anime():
             }
             weekly_schedule[day_name].append(anime_info)
         
-        # Créer un dictionnaire ordonné avec les jours dans le bon ordre
+        # Créer un dictionnaire ordonné avec les jours traduits
         ordered_schedule = OrderedDict()
         for day in days_order:
             if day in weekly_schedule:
-                ordered_schedule[day] = weekly_schedule[day]
+                ordered_schedule[days_translation[day]] = weekly_schedule[day]
             
         return ordered_schedule
     return None
