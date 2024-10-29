@@ -2,10 +2,8 @@ import requests
 from bs4 import BeautifulSoup
 import time
 from difflib import SequenceMatcher
-from database import add_episode, get_all_episodes
+from database import add_episode, get_all_episodes, Anime, Episode, Session
 import json
-from sqlalchemy.orm import Session
-from models import Anime, Episode
 
 def similar(a, b):
     # Fonction pour calculer la similarité entre deux chaînes
