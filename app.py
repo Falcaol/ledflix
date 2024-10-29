@@ -11,6 +11,7 @@ import re
 from sqlalchemy import desc
 from utils import clean_title, extract_episode_number, format_date
 from sqlalchemy.orm import joinedload
+from sqlalchemy import or_
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'votre_clé_secrète_par_défaut')
@@ -270,22 +271,41 @@ def toggle_favorite(anime_id):
 @app.route('/animes')
 def animes():
     page = request.args.get('page', 1, type=int)
-    search_query = request.args.get('q', '').strip()
+    search_query = request.args.get('q', '')
+    session = Session()
     
-    if search_query:
-        animes_data = database.search_animes(search_query, page=page)
-    else:
-        animes_data = database.get_all_animes(page=page)
-    
-    if 'user_id' in session:
-        for anime in animes_data['animes']:
-            anime['is_favorite'] = database.is_favorite(session['user_id'], anime['id'])
-    
-    return render_template('animes.html', 
-                         animes=animes_data['animes'],
-                         current_page=animes_data['current_page'],
-                         total_pages=animes_data['total_pages'],
-                         search_query=search_query)
+    try:
+        query = session.query(Anime)
+        
+        # Recherche
+        if search_query:
+            query = query.filter(Anime.title.ilike(f'%{search_query}%'))
+        
+        # Compter le total pour la pagination
+        total_animes = query.count()
+        per_page = 12
+        total_pages = (total_animes + per_page - 1) // per_page
+        
+        # Récupérer les animes avec leurs épisodes
+        animes = query\
+            .options(joinedload(Anime.episodes))\
+            .order_by(Anime.title)\
+            .offset((page - 1) * per_page)\
+            .limit(per_page)\
+            .all()
+            
+        # Ajouter l'information des favoris si l'utilisateur est connecté
+        if 'user_id' in session:
+            for anime in animes:
+                anime.is_favorite = is_favorite(session['user_id'], anime.id)
+        
+        return render_template('animes.html',
+                             animes=animes,
+                             current_page=page,
+                             total_pages=total_pages,
+                             search_query=search_query)
+    finally:
+        session.close()
 
 @app.route('/anime/<int:anime_id>')
 def anime_details(anime_id):
