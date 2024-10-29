@@ -215,6 +215,8 @@ def toggle_favorite(anime_id):
 
 @app.route('/animes')
 def animes():
+    search_query = request.args.get('search', '').strip()
+    
     # Récupérer les animes du calendrier
     weekly_schedule = get_weekly_anime()
     processed_animes = []
@@ -222,6 +224,10 @@ def animes():
     # Traiter chaque anime du calendrier
     for day, day_animes in weekly_schedule.items():
         for anime in day_animes:
+            # Si une recherche est active, filtrer les résultats
+            if search_query and search_query.lower() not in anime['title'].lower():
+                continue
+                
             # Créer un dictionnaire pour chaque anime
             anime_dict = {
                 'title': anime['title'],

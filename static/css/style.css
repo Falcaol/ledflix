@@ -281,22 +281,30 @@ iframe {
 
 .search-form .btn {
     padding: 12px 25px;
+}
+
+.search-form .btn-primary {
     border-radius: 0 25px 25px 0;
 }
 
 .search-form .btn-secondary {
     border-radius: 25px;
-    background-color: var(--bg-dark);
-    border: 1px solid var(--accent-color);
-}
-
-.search-form .btn-secondary:hover {
-    background-color: var(--bg-card);
+    margin-left: 10px;
 }
 
 .search-results {
     color: var(--text-secondary);
     font-style: italic;
+    margin-top: 10px;
+}
+
+/* Animation pour les résultats */
+.anime-card {
+    transition: transform 0.3s ease;
+}
+
+.anime-card:hover {
+    transform: translateY(-5px);
 }
 
 /* Styles pour l'authentification */
