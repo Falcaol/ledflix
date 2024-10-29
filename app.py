@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, abort, redirect, url_for, flash, session, jsonify
 from functools import wraps
 import scrap
-import requests
+from utils import get_anime_schedule_data  # Importez depuis utils
 from datetime import datetime
 from collections import defaultdict, OrderedDict
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -288,81 +288,6 @@ def send_message():
 @app.route('/health')
 def health_check():
     return jsonify({"status": "ok"}), 200
-
-def clean_title(title):
-    """Nettoie un titre pour la comparaison"""
-    # Enlève les numéros d'épisode, VOSTFR, VF, etc.
-    title = re.sub(r'\s*(?:–|-|:)?\s*(?:Episode|Ep\.?)?\s*\d+(?:\.\d+)?\s*(?:VOSTFR|VF)?$', '', title, flags=re.IGNORECASE)
-    # Enlève les numéros de saison
-    title = re.sub(r'\s*(?:Saison|Season|S)\s*\d+', '', title, flags=re.IGNORECASE)
-    # Enlève la ponctuation et les espaces multiples
-    title = re.sub(r'[^\w\s]', ' ', title)
-    title = ' '.join(title.split())
-    return title.lower()
-
-def match_anime_title(mavanimes_title, api_data):
-    """Trouve la correspondance entre un titre de mavanimes et les données de l'API"""
-    best_match = None
-    best_ratio = 0
-    clean_mav_title = clean_title(mavanimes_title)
-    
-    for anime in api_data:
-        # Titres à comparer
-        titles_to_check = [
-            anime.get('title', ''),
-            anime.get('english', ''),
-            anime.get('romaji', '')
-        ]
-        
-        for api_title in titles_to_check:
-            if not api_title:
-                continue
-                
-            clean_api_title = clean_title(api_title)
-            
-            # Vérification exacte après nettoyage
-            if clean_mav_title == clean_api_title:
-                return anime
-            
-            # Vérification si l'un est contenu dans l'autre
-            if clean_mav_title in clean_api_title or clean_api_title in clean_mav_title:
-                ratio = len(min(clean_mav_title, clean_api_title)) / len(max(clean_mav_title, clean_api_title))
-                if ratio > best_ratio:
-                    best_ratio = ratio
-                    best_match = anime
-            
-            # Sinon, utiliser SequenceMatcher
-            ratio = SequenceMatcher(None, clean_mav_title, clean_api_title).ratio()
-            if ratio > best_ratio:
-                best_ratio = ratio
-                best_match = anime
-
-    # Retourner le meilleur match si le ratio est suffisant
-    return best_match if best_ratio > 0.8 else None
-
-# Exemple d'utilisation
-def process_episode(mavanimes_title):
-    """Traite un épisode de mavanimes"""
-    try:
-        # Récupérer les données de l'API
-        api_data = get_anime_schedule_data()
-        
-        # Trouver la correspondance
-        match = match_anime_title(mavanimes_title, api_data)
-        
-        if match:
-            print(f"Correspondance trouvée pour {mavanimes_title}:")
-            print(f"Titre API: {match['title']}")
-            print(f"Episode: {match['episodeNumber']}")
-            print(f"Date: {match['episodeDate']}")
-            return match
-        else:
-            print(f"Aucune correspondance trouvée pour {mavanimes_title}")
-            return None
-            
-    except Exception as e:
-        print(f"Erreur lors du traitement de {mavanimes_title}: {e}")
-        return None
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
