@@ -195,6 +195,11 @@ def anime_details(anime_id):
                          anime=anime_data['anime'],
                          episodes=anime_data['episodes'])
 
+@app.route('/force-update')
+def force_update():
+    count = scrap.update_episodes()
+    return f"Mise à jour effectuée : {count} nouveaux épisodes ajoutés"
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
