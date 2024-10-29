@@ -215,23 +215,22 @@ def toggle_favorite(anime_id):
 
 @app.route('/animes')
 def animes():
-    page = request.args.get('page', 1, type=int)
-    search_query = request.args.get('q', '').strip()
+    # Récupérer les animes du calendrier
+    weekly_anime = get_weekly_anime()
     
-    if search_query:
-        animes_data = database.search_animes(search_query, page=page)
-    else:
-        animes_data = database.get_all_animes(page=page)
-    
+    # Pour chaque anime, récupérer les épisodes correspondants
+    for anime in weekly_anime:
+        # Rechercher les épisodes avec un titre similaire
+        anime['episodes'] = database.get_episodes_by_anime_title(anime['title'])
+        
+    # Récupérer les favoris si l'utilisateur est connecté
+    favorites = set()
     if 'user_id' in session:
-        for anime in animes_data['animes']:
-            anime['is_favorite'] = database.is_favorite(session['user_id'], anime['id'])
+        favorites = database.get_user_favorites(session['user_id'])
     
     return render_template('animes.html', 
-                         animes=animes_data['animes'],
-                         current_page=animes_data['current_page'],
-                         total_pages=animes_data['total_pages'],
-                         search_query=search_query)
+                         weekly_anime=weekly_anime,
+                         favorites=favorites)
 
 @app.route('/anime/<int:anime_id>')
 def anime_details(anime_id):

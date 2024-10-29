@@ -479,3 +479,17 @@ def get_chat_messages(limit=50):
         ][::-1]  # Inverser pour avoir les plus anciens en premier
     finally:
         session.close()
+
+def get_episodes_by_anime_title(title):
+    """Récupère les épisodes correspondant à un titre d'anime"""
+    session = Session()
+    try:
+        # Utiliser la fonction de similarité pour trouver les correspondances
+        episodes = session.query(Episode)\
+            .filter(Episode.title.ilike(f'%{title}%'))\
+            .order_by(Episode.created_at.desc())\
+            .all()
+        
+        return episodes
+    finally:
+        session.close()
