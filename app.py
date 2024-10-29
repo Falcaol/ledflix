@@ -143,17 +143,21 @@ def get_anime_info_from_api(title):
         url = "https://animeschedule.net/api/v3/anime"
         response = requests.get(url)
         if response.status_code == 200:
-            animes = response.json()
+            data = response.json()
+            # L'API retourne une liste d'animes
+            animes = data['data'] if isinstance(data, dict) and 'data' in data else []
+            
             # Trouver l'anime le plus similaire
             best_match = None
             best_ratio = 0
             clean_search = clean_title(title).lower()
             
             for anime in animes:
-                ratio = SequenceMatcher(None, clean_search, anime['name'].lower()).ratio()
-                if ratio > best_ratio and ratio > 0.8:  # Seuil de similarité à 80%
-                    best_ratio = ratio
-                    best_match = anime
+                if isinstance(anime, dict) and 'name' in anime:
+                    ratio = SequenceMatcher(None, clean_search, anime['name'].lower()).ratio()
+                    if ratio > best_ratio and ratio > 0.8:
+                        best_ratio = ratio
+                        best_match = anime
             
             return best_match
     except Exception as e:
@@ -162,40 +166,29 @@ def get_anime_info_from_api(title):
 
 def extract_episode_info(episode_title, anime_api_info):
     """Extrait le numéro d'épisode en utilisant l'API comme référence"""
-    if not anime_api_info:
-        # Fallback sur l'ancienne méthode si pas d'info API
-        return extract_episode_number(episode_title)
-    
     try:
-        # Nettoyer le titre de l'épisode
-        clean_ep_title = clean_title(episode_title).lower()
-        
-        # Vérifier le format du numéro d'épisode
+        # D'abord essayer l'extraction classique
         import re
         match = re.search(r'[-–]\s*(?:Episode)?\s*(\d+(?:\.\d+)?)', episode_title, re.IGNORECASE)
         if match:
-            ep_num = float(match.group(1))
-            # Vérifier si ce numéro est cohérent avec l'API
-            if 'episodes' in anime_api_info and ep_num <= anime_api_info['episodes']:
-                return ep_num
-                
-        # Si pas de match ou numéro incohérent, chercher dans l'API
-        if 'episodes' in anime_api_info:
-            for i in range(1, anime_api_info['episodes'] + 1):
-                if f"episode {i}" in clean_ep_title:
-                    return float(i)
+            return float(match.group(1))
+            
+        # Si pas de match, chercher juste un nombre
+        numbers = re.findall(r'\d+(?:\.\d+)?', episode_title)
+        if numbers:
+            return float(numbers[-1])  # Prendre le dernier nombre trouvé
+            
     except Exception as e:
         print(f"Erreur extraction épisode: {e}")
     
-    # Fallback sur l'ancienne méthode
-    return extract_episode_number(episode_title)
+    return 9999  # Valeur par défaut pour le tri
 
 def get_anime_with_episodes(anime_id):
     """Récupère un anime avec tous ses épisodes triés"""
     session = Session()
     try:
         anime = session.query(Anime)\
-            .options(joinedload(Episode))\
+            .options(joinedload(Anime.episodes))\
             .filter_by(id=anime_id)\
             .first()
             
@@ -204,9 +197,10 @@ def get_anime_with_episodes(anime_id):
             api_info = get_anime_info_from_api(anime.title)
             
             # Trier les épisodes en utilisant l'API comme référence
-            anime.episodes.sort(
-                key=lambda x: extract_episode_info(x.title, api_info)
-            )
+            if anime.episodes:
+                anime.episodes.sort(
+                    key=lambda x: extract_episode_info(x.title, api_info)
+                )
             
             # Ajouter l'information si l'anime est en favoris
             if 'user_id' in session:

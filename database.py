@@ -26,24 +26,24 @@ Base = declarative_base()
 class Anime(Base):
     __tablename__ = 'animes'
     
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    title = Column(String, unique=True)
+    id = Column(Integer, primary_key=True)
+    title = Column(String)
     image = Column(String)
+    episodes = relationship("Episode", back_populates="anime")
     created_at = Column(DateTime, default=datetime.utcnow)
-    episodes = relationship('Episode', back_populates='anime')
 
 class Episode(Base):
     __tablename__ = 'episodes'
     
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    title = Column(String, unique=True)
+    id = Column(Integer, primary_key=True)
+    title = Column(String)
+    anime_id = Column(Integer, ForeignKey('animes.id'))
+    anime = relationship("Anime", back_populates="episodes")
     link = Column(String)
     video_links = Column(String)
     image = Column(String)
     crunchyroll = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    anime_id = Column(Integer, ForeignKey('animes.id'))
-    anime = relationship('Anime', back_populates='episodes')
 
 class User(Base):
     __tablename__ = 'users'
