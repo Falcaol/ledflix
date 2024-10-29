@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark">
@@ -96,18 +97,23 @@
         </nav>
         {% endif %}
 
-        <!-- Après la section des épisodes, avant la pagination -->
+        <!-- Remplacer la section du chat par ce nouveau code -->
         {% if session.user_id %}
         <div class="chat-container">
             <div class="chat-header">
                 <h3>Chat Général</h3>
+                <span class="online-users">
+                    <i class="fas fa-circle"></i> En ligne
+                </span>
             </div>
             <div class="chat-messages" id="chat-messages">
                 <!-- Les messages seront ajoutés ici dynamiquement -->
             </div>
             <div class="chat-input">
                 <input type="text" id="message-input" placeholder="Écrivez votre message...">
-                <button id="send-message" class="btn btn-primary">Envoyer</button>
+                <button id="send-message" class="btn btn-primary">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
             </div>
         </div>
         {% endif %}
@@ -150,6 +156,16 @@
         const message = messageInput.value.trim();
         if (!message) return;
 
+        // Créer et afficher le message localement immédiatement
+        const localMessage = {
+            username: '{{ session.username }}',
+            message: message,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        addMessage(localMessage, true);
+        messageInput.value = '';
+
+        // Envoyer au serveur
         fetch('/chat/send', {
             method: 'POST',
             headers: {
@@ -159,9 +175,9 @@
         })
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                addMessage(data, true);
-                messageInput.value = '';
+            if (!data.success) {
+                // En cas d'erreur, recharger tous les messages
+                loadMessages();
             }
         });
     }
