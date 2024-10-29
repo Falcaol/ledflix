@@ -498,9 +498,11 @@ def get_episodes_by_anime_title(title):
         conditions = []
         for term in search_terms:
             conditions.append(Episode.title.ilike(f'%{term}%'))
-            # Ajouter des variantes courantes
-            conditions.append(Episode.title.ilike(f'%{term.replace("no", "\'s")}%'))
-            conditions.append(Episode.title.ilike(f'%{term.replace("no", "")}%'))
+            
+            # Gérer le cas Kamonohashi spécifiquement
+            if 'Kamonohashi' in term:
+                conditions.append(Episode.title.ilike('%Ron Kamonohashi%'))
+                conditions.append(Episode.title.ilike('%Forbidden Deductions%'))
         
         # Utiliser OR pour toutes les conditions
         episodes = session.query(Episode)\
