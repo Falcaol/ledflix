@@ -142,27 +142,30 @@ def get_latest_episodes(page=1, per_page=24):
             .limit(per_page)
             
         episodes = query.all()
-        
-        # Compter le total pour la pagination
         total = session.query(Episode).count()
         
         return {
             'episodes': episodes,
             'total': total,
-            'pages': (total + per_page - 1) // per_page
+            'pages': (total + per_page - 1) // per_page,
+            'current_page': page
         }
     finally:
         session.close()
 
 @app.route('/')
 def index():
-    page = request.args.get('page', 1, type=int)
+    try:
+        page = int(request.args.get('page', 1))
+    except ValueError:
+        page = 1
+        
     episodes_data = get_latest_episodes(page=page)
     
     return render_template('index.html',
                          episodes=episodes_data['episodes'],
-                         current_page=episodes_data['current_page'],
-                         total_pages=episodes_data['total_pages'])
+                         total_pages=episodes_data['pages'],
+                         current_page=episodes_data['current_page'])
 
 def get_anime_info_from_api(title):
     """Récupère les informations d'un anime depuis l'API AnimeSchedule"""
