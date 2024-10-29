@@ -13,6 +13,8 @@ from utils import clean_title, extract_episode_number, format_date
 from sqlalchemy.orm import joinedload
 from sqlalchemy import or_
 from difflib import SequenceMatcher
+import flask
+from flask import session as flask_session
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'votre_clé_secrète_par_défaut')
@@ -192,20 +194,10 @@ def get_anime_with_episodes(anime_id):
             .filter_by(id=anime_id)\
             .first()
             
-        if anime:
-            # Récupérer les infos de l'API
-            api_info = get_anime_info_from_api(anime.title)
+        if anime and anime.episodes:
+            # Trier les épisodes
+            anime.episodes.sort(key=lambda x: extract_episode_number(x.title))
             
-            # Trier les épisodes en utilisant l'API comme référence
-            if anime.episodes:
-                anime.episodes.sort(
-                    key=lambda x: extract_episode_info(x.title, api_info)
-                )
-            
-            # Ajouter l'information si l'anime est en favoris
-            if 'user_id' in session:
-                anime.is_favorite = is_favorite(session['user_id'], anime.id)
-                
         return anime
     finally:
         session.close()
@@ -326,21 +318,18 @@ def toggle_favorite(anime_id):
 def animes():
     page = request.args.get('page', 1, type=int)
     search_query = request.args.get('q', '')
-    session = Session()
+    db_session = Session()
     
     try:
-        query = session.query(Anime)
+        query = db_session.query(Anime)
         
-        # Recherche
         if search_query:
             query = query.filter(Anime.title.ilike(f'%{search_query}%'))
         
-        # Compter le total pour la pagination
         total_animes = query.count()
         per_page = 12
         total_pages = (total_animes + per_page - 1) // per_page
         
-        # Récupérer les animes avec leurs épisodes
         animes = query\
             .options(joinedload(Anime.episodes))\
             .order_by(Anime.title)\
@@ -348,10 +337,10 @@ def animes():
             .limit(per_page)\
             .all()
             
-        # Ajouter l'information des favoris si l'utilisateur est connecté
-        if 'user_id' in session:
+        if 'user_id' in flask.session:
+            user_id = flask.session['user_id']
             for anime in animes:
-                anime.is_favorite = is_favorite(session['user_id'], anime.id)
+                anime.is_favorite = is_favorite(user_id, anime.id)
         
         return render_template('animes.html',
                              animes=animes,
@@ -359,7 +348,7 @@ def animes():
                              total_pages=total_pages,
                              search_query=search_query)
     finally:
-        session.close()
+        db_session.close()
 
 @app.route('/anime/<int:anime_id>')
 def anime_details(anime_id):
