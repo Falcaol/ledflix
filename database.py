@@ -32,6 +32,7 @@ class Episode(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     anime_id = Column(Integer, ForeignKey('animes.id'))
     anime = relationship('Anime', back_populates='episodes')
+    air_date = Column(DateTime, default=datetime.utcnow)
 
 class User(Base):
     __tablename__ = 'users'
