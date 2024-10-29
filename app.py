@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, abort, redirect, url_for, fla
 from functools import wraps
 import scrap
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import defaultdict, OrderedDict
 from apscheduler.schedulers.background import BackgroundScheduler
 from database import Session, Anime, Episode, Favorite, get_episode_ratings, get_user_rating
@@ -270,24 +270,28 @@ def save_progress():
 
 @app.route('/calendar')
 def calendar():
-    weekly_anime = get_weekly_anime()
-    search_query = request.args.get('q', '').strip()
-    
-    if search_query and weekly_anime:
-        # Filtrer les animes qui correspondent à la recherche
-        filtered_schedule = OrderedDict()
-        for day, animes in weekly_anime.items():
-            matching_animes = [
-                anime for anime in animes 
-                if search_query.lower() in anime['title'].lower()
-            ]
-            if matching_animes:
-                filtered_schedule[day] = matching_animes
-        weekly_anime = filtered_schedule if filtered_schedule else weekly_anime
+    session = Session()
+    try:
+        # Récupérer tous les épisodes des 7 derniers jours
+        seven_days_ago = datetime.now() - timedelta(days=7)
+        episodes = session.query(Episode)\
+            .join(Episode.anime)\
+            .filter(Episode.created_at >= seven_days_ago)\
+            .order_by(Episode.created_at.desc())\
+            .all()
 
-    return render_template('calendar.html', 
-                         schedule=weekly_anime,
-                         search_query=search_query)
+        # Grouper les épisodes par jour
+        episodes_by_day = {}
+        for episode in episodes:
+            day = episode.created_at.strftime('%Y-%m-%d')
+            if day not in episodes_by_day:
+                episodes_by_day[day] = []
+            episodes_by_day[day].append(episode)
+
+        return render_template('calendar.html', 
+                             episodes_by_day=episodes_by_day)
+    finally:
+        session.close()
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -383,13 +387,43 @@ def animes():
 
 @app.route('/anime/<int:anime_id>')
 def anime_details(anime_id):
-    anime = get_anime_with_episodes(anime_id)
-    if anime is None:
-        abort(404)
+    session = Session()
+    try:
+        anime = session.query(Anime)\
+            .options(joinedload(Anime.episodes))\
+            .filter_by(id=anime_id)\
+            .first_or_404()
+
+        # Trier les épisodes par numéro
+        episodes = sorted(anime.episodes, key=lambda x: x.number)
+
+        # Grouper les épisodes par saison si nécessaire
+        episodes_by_season = {}
+        for episode in episodes:
+            season = detect_season(episode.title)
+            if season not in episodes_by_season:
+                episodes_by_season[season] = []
+            episodes_by_season[season].append(episode)
+
+        return render_template('anime.html',
+                             anime=anime,
+                             episodes_by_season=episodes_by_season)
+    finally:
+        session.close()
+
+def detect_season(title):
+    """Détecte la saison dans le titre d'un épisode"""
+    # Chercher "Saison X" ou "Season X"
+    season_match = re.search(r'(?:Saison|Season)\s*(\d+)', title, re.IGNORECASE)
+    if season_match:
+        return int(season_match.group(1))
         
-    return render_template('anime_details.html',
-                         anime=anime,
-                         is_favorite=getattr(anime, 'is_favorite', False))
+    # Chercher "SX" ou "S0X"
+    s_match = re.search(r'S(?:aison)?\s*(\d+)', title, re.IGNORECASE)
+    if s_match:
+        return int(s_match.group(1))
+        
+    return 1  # Saison 1 par défaut
 
 @app.route('/force-update')
 def force_update():
@@ -490,6 +524,111 @@ def utility_processor():
         get_user_rating=get_user_rating,
         is_favorite=is_favorite
     )
+
+def match_episode_to_anime(episode_title, api_data):
+    """
+    Trouve l'anime correspondant à un épisode dans les données de l'API
+    """
+    best_match = None
+    best_ratio = 0
+    
+    # Nettoyer le titre de l'épisode (enlever le numéro d'épisode et VOSTFR)
+    clean_ep_title = clean_title(episode_title)
+    clean_ep_title = re.sub(r'\s*–?\s*(?:Episode)?\s*\d+(?:\.\d+)?\s*(?:VOSTFR|VF)?$', '', clean_ep_title, flags=re.IGNORECASE)
+    
+    for anime in api_data:
+        titles_to_check = [
+            anime.get('title', ''),
+            anime.get('english', ''),
+            anime.get('romaji', '')
+        ]
+        
+        for title in titles_to_check:
+            if not title:
+                continue
+            ratio = SequenceMatcher(None, clean_ep_title.lower(), title.lower()).ratio()
+            if ratio > best_ratio and ratio > 0.8:
+                best_ratio = ratio
+                best_match = anime
+                break
+    
+    return best_match
+
+def process_new_episode(episode_title):
+    """
+    Traite un nouvel épisode et le lie à son anime
+    """
+    session = Session()
+    try:
+        # Récupérer les données de l'API
+        api_data = get_anime_schedule_data()  # La fonction qui fait l'appel API
+        if not api_data:
+            print(f"Impossible de récupérer les données API pour: {episode_title}")
+            return None
+            
+        # Trouver l'anime correspondant
+        anime_data = match_episode_to_anime(episode_title, api_data)
+        if not anime_data:
+            print(f"Aucun anime trouvé pour: {episode_title}")
+            return None
+            
+        # Chercher si l'anime existe déjà en base
+        anime = session.query(Anime).filter(
+            or_(
+                Anime.title.ilike(anime_data['title']),
+                Anime.title.ilike(anime_data.get('english', '')),
+                Anime.title.ilike(anime_data.get('romaji', ''))
+            )
+        ).first()
+        
+        # Si l'anime n'existe pas, le créer
+        if not anime:
+            anime = Anime(
+                title=anime_data['title'],
+                english_title=anime_data.get('english'),
+                romaji_title=anime_data.get('romaji'),
+                image=f"https://animeschedule.net/{anime_data.get('imageVersionRoute', '')}"
+            )
+            session.add(anime)
+            session.flush()
+        
+        # Extraire le numéro d'épisode
+        episode_number = extract_episode_number(episode_title)
+        
+        # Créer l'épisode
+        episode = Episode(
+            title=episode_title,
+            number=episode_number,
+            anime_id=anime.id
+        )
+        session.add(episode)
+        session.commit()
+        
+        print(f"Nouvel épisode ajouté: {episode_title}")
+        return episode
+        
+    except Exception as e:
+        print(f"Erreur lors du traitement de l'épisode {episode_title}: {e}")
+        session.rollback()
+        return None
+    finally:
+        session.close()
+
+def extract_episode_number(title):
+    """
+    Extrait le numéro d'épisode du titre
+    """
+    # Chercher d'abord le format "Episode XX" ou "- XX"
+    match = re.search(r'(?:Episode|–)\s*(\d+(?:\.\d+)?)', title, re.IGNORECASE)
+    if match:
+        return float(match.group(1))
+        
+    # Sinon chercher juste un nombre à la fin
+    match = re.search(r'(\d+(?:\.\d+)?)\s*(?:VOSTFR|VF)?$', title)
+    if match:
+        return float(match.group(1))
+        
+    return 0  # Valeur par défaut
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

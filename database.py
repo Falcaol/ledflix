@@ -28,8 +28,10 @@ class Anime(Base):
     
     id = Column(Integer, primary_key=True)
     title = Column(String)
+    english_title = Column(String)
+    romaji_title = Column(String)
     image = Column(String)
-    episodes = relationship("Episode", back_populates="anime")
+    episodes = relationship("Episode", back_populates="anime", order_by="Episode.number")
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class Episode(Base):
@@ -37,6 +39,7 @@ class Episode(Base):
     
     id = Column(Integer, primary_key=True)
     title = Column(String)
+    number = Column(Float)  # Float pour gérer les .5
     anime_id = Column(Integer, ForeignKey('animes.id'))
     anime = relationship("Anime", back_populates="episodes")
     link = Column(String)

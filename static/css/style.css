@@ -374,3 +374,62 @@ iframe {
 .plyr--full-ui input[type=range] {
     color: var(--accent-color);
 }
+
+.calendar .day-group {
+    margin-bottom: 2rem;
+}
+
+.episodes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.episode-card {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+
+.episode-card:hover {
+    transform: translateY(-2px);
+}
+
+.episode-card img {
+    width: 100%;
+    height: 280px;
+    object-fit: cover;
+}
+
+.episode-info {
+    padding: 1rem;
+}
+
+.anime-details .anime-header {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+.anime-header img {
+    width: 300px;
+    height: 450px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+.episodes-list {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.episode-item {
+    padding: 0.5rem;
+    border-radius: 4px;
+    background: #f5f5f5;
+}
+
+.episode-item:hover {
+    background: #e5e5e5;
+}
