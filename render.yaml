@@ -18,6 +18,7 @@ services:
     autoDeploy: false
     healthCheckPath: /
     healthCheckTimeout: 100
+    postDeployCommand: python -c "from app import initialize_data; initialize_data()"
 
 databases:
   - name: animestream_db

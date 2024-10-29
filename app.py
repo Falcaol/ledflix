@@ -22,8 +22,20 @@ def login_required(f):
 
 # Créer un scheduler pour la mise à jour automatique
 scheduler = BackgroundScheduler()
-scheduler.add_job(func=scrap.update_episodes, trigger="interval", minutes=30)
+scheduler.add_job(func=scrap.update_episodes, trigger="interval", minutes=15)
 scheduler.start()
+
+# Ajouter cette fonction pour initialiser les données
+def initialize_data():
+    print("Initialisation des données...")
+    try:
+        count = scrap.update_episodes()
+        print(f"Initialisation terminée : {count} épisodes ajoutés")
+    except Exception as e:
+        print(f"Erreur lors de l'initialisation : {e}")
+
+# Appeler la fonction d'initialisation au démarrage
+initialize_data()
 
 def get_weekly_anime():
     url = "https://animeschedule.net/api/v3/timetables/sub"
