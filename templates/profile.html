@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mon Profil</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <!-- ... navbar existante ... -->
+    </nav>
+
+    <div class="container mt-4">
+        <h1 class="mb-4">Mon Profil</h1>
+        
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card profile-card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ session.username }}</h5>
+                        <p class="text-muted">Membre depuis {{ session.created_at }}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-8">
+                <h2 class="mb-4">Mes Favoris</h2>
+                <div class="row">
+                    {% for anime in favorites %}
+                        <div class="col-md-4 mb-4">
+                            <div class="card anime-card">
+                                <img src="{{ anime.image }}" class="card-img-top" alt="{{ anime.title }}">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <a href="{{ url_for('anime_details', anime_id=anime.id) }}">{{ anime.title }}</a>
+                                    </h5>
+                                    <p class="card-text">
+                                        <span class="badge badge-primary">{{ anime.episode_count }} épisodes</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="col-12">
+                            <div class="alert alert-info">
+                                Vous n'avez pas encore d'animes favoris.
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

@@ -1,0 +1,376 @@
+:root {
+    --bg-dark: #141414;
+    --bg-card: #1E1E1E;
+    --text-primary: #FFFFFF;
+    --text-secondary: #B3B3B3;
+    --accent-color: #E50914;
+    --navbar-bg: #000000;
+    --card-hover: #2A2A2A;
+}
+
+body {
+    background-color: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+}
+
+/* Navbar Styles */
+.navbar {
+    background-color: rgba(0, 0, 0, 0.9) !important;
+    padding: 1rem 0;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    transition: background-color 0.3s ease;
+}
+
+.navbar.scrolled {
+    background-color: var(--navbar-bg) !important;
+}
+
+.navbar-brand {
+    color: var(--accent-color) !important;
+    font-weight: 900;
+    font-size: 2rem;
+    font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 1px;
+}
+
+.nav-link {
+    color: var(--text-secondary) !important;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    margin: 0 10px;
+    position: relative;
+    padding: 0.5rem 1rem;
+}
+
+.nav-link::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 2px;
+    bottom: 0;
+    left: 50%;
+    background-color: var(--accent-color);
+    transition: all 0.3s ease;
+}
+
+.nav-link:hover::after {
+    width: 100%;
+    left: 0;
+}
+
+.nav-link:hover, .nav-link.active {
+    color: var(--accent-color) !important;
+}
+
+/* Card Styles */
+.card {
+    background-color: var(--bg-card);
+    border: none;
+    border-radius: 15px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    margin-bottom: 20px;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    background-color: var(--card-hover);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.card-img-top {
+    height: 250px;
+    object-fit: cover;
+    transition: all 0.3s ease;
+}
+
+.card:hover .card-img-top {
+    transform: scale(1.05);
+}
+
+.card-body {
+    padding: 1.25rem;
+}
+
+.card-title {
+    color: var(--text-primary);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.card-title a {
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.card-title a:hover {
+    color: var(--accent-color);
+}
+
+/* Calendar Styles */
+.day-section h2 {
+    color: var(--accent-color);
+    font-weight: 700;
+    margin: 2rem 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--accent-color);
+}
+
+/* Video Player Styles */
+.video-container {
+    background-color: var(--bg-card);
+    padding: 20px;
+    border-radius: 15px;
+    margin: 20px 0;
+}
+
+iframe {
+    border-radius: 10px;
+    width: 100%;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+/* Buttons */
+.btn {
+    padding: 0.5rem 1.5rem;
+    border-radius: 25px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background-color: var(--accent-color);
+    border: none;
+    padding: 0.8rem 2rem;
+    font-weight: 600;
+}
+
+.btn-primary:hover {
+    background-color: #f40612;
+    transform: translateY(-2px);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-dark);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--accent-color);
+    border-radius: 4px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.anime-card {
+    animation: fadeIn 0.5s ease-out forwards;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    margin-bottom: 30px;
+}
+
+.anime-card:hover {
+    transform: scale(1.05);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+}
+
+.card-img-top {
+    height: 300px;
+    object-fit: cover;
+}
+
+/* Ajouter ces styles */
+.btn-crunchyroll {
+    background-color: #F47521;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 25px;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-crunchyroll:hover {
+    background-color: #FF8C47;
+    color: white;
+    transform: translateY(-2px);
+}
+
+.crunchyroll-container {
+    background-color: var(--bg-card);
+    padding: 20px;
+    border-radius: 15px;
+    text-align: center;
+}
+
+.crunchyroll-container h4 {
+    color: #F47521;
+    margin-bottom: 15px;
+}
+
+/* Ajouter à la fin du fichier */
+.pagination {
+    margin-top: 2rem;
+}
+
+.page-link {
+    background-color: var(--bg-card);
+    border-color: var(--accent-color);
+    color: var(--text-primary);
+    margin: 0 3px;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+}
+
+.page-link:hover {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+    color: white;
+    transform: translateY(-2px);
+}
+
+.page-item.active .page-link {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+.page-item.disabled .page-link {
+    background-color: var(--bg-card);
+    border-color: var(--bg-card);
+    color: var(--text-secondary);
+}
+
+/* Ajouter ces styles pour la recherche */
+.search-container {
+    background-color: var(--bg-card);
+    padding: 20px;
+    border-radius: 15px;
+    margin-bottom: 30px;
+}
+
+.search-input {
+    background-color: var(--bg-dark);
+    border: 1px solid var(--accent-color);
+    color: var(--text-primary);
+    padding: 12px 20px;
+    border-radius: 25px 0 0 25px;
+}
+
+.search-input:focus {
+    background-color: var(--bg-dark);
+    color: var(--text-primary);
+    box-shadow: none;
+    border-color: var(--accent-color);
+}
+
+.search-form .btn {
+    padding: 12px 25px;
+    border-radius: 0 25px 25px 0;
+}
+
+.search-form .btn-secondary {
+    border-radius: 25px;
+    background-color: var(--bg-dark);
+    border: 1px solid var(--accent-color);
+}
+
+.search-form .btn-secondary:hover {
+    background-color: var(--bg-card);
+}
+
+.search-results {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* Styles pour l'authentification */
+.auth-card {
+    background-color: var(--bg-card);
+    border: none;
+    border-radius: 15px;
+}
+
+.form-control {
+    background-color: var(--bg-dark);
+    border: 1px solid var(--accent-color);
+    color: var(--text-primary);
+    border-radius: 25px;
+}
+
+.form-control:focus {
+    background-color: var(--bg-dark);
+    color: var(--text-primary);
+    border-color: var(--accent-color);
+    box-shadow: none;
+}
+
+/* Bouton favori */
+.btn-favorite {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.5);
+    border: none;
+    color: white;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.btn-favorite:hover {
+    background-color: var(--accent-color);
+}
+
+.btn-favorite.active {
+    background-color: var(--accent-color);
+}
+
+.btn-favorite i {
+    font-size: 1.2rem;
+}
+
+/* Profile card */
+.profile-card {
+    background-color: var(--bg-card);
+    border: none;
+    border-radius: 15px;
+}
+
+/* Styles pour le lecteur vidéo */
+.plyr--video {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.plyr--video .plyr__control--overlaid {
+    background: var(--accent-color);
+}
+
+.plyr--video .plyr__control:hover {
+    background: var(--accent-color);
+}
+
+.plyr--full-ui input[type=range] {
+    color: var(--accent-color);
+}
