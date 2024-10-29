@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ episode.title }}</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/plyr@3.6.8/dist/plyr.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/plyr@3.6.8/dist/plyr.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">AnimeStream</a>
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ml-auto">
+                    <li class="nav-item {% if request.endpoint == 'index' %}active{% endif %}">
+                        <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+                    </li>
+                    <li class="nav-item {% if request.endpoint == 'animes' %}active{% endif %}">
+                        <a class="nav-link" href="{{ url_for('animes') }}">Animes</a>
+                    </li>
+                    <li class="nav-item {% if request.endpoint == 'calendar' %}active{% endif %}">
+                        <a class="nav-link" href="{{ url_for('calendar') }}">Calendrier</a>
+                    </li>
+                    {% if session.user_id %}
+                        <li class="nav-item {% if request.endpoint == 'profile' %}active{% endif %}">
+                            <a class="nav-link" href="{{ url_for('profile') }}">Mon Profil</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('logout') }}">Déconnexion</a>
+                        </li>
+                    {% else %}
+                        <li class="nav-item {% if request.endpoint == 'login' %}active{% endif %}">
+                            <a class="nav-link" href="{{ url_for('login') }}">Connexion</a>
+                        </li>
+                        <li class="nav-item {% if request.endpoint == 'register' %}active{% endif %}">
+                            <a class="nav-link" href="{{ url_for('register') }}">Inscription</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1 class="mb-4">{{ episode.title }}</h1>
+        
+        {% if episode.crunchyroll %}
+            <div class="crunchyroll-container mb-4">
+                <h4>Regarder sur Crunchyroll</h4>
+                <a href="{{ episode.crunchyroll }}" target="_blank" class="btn btn-crunchyroll">
+                    <img src="{{ url_for('static', filename='img/crunchyroll-logo.png') }}" alt="Crunchyroll" height="20">
+                    Voir sur Crunchyroll
+                </a>
+            </div>
+        {% endif %}
+        
+        {% for video_link in episode.video_links %}
+            {% if not 'dailymotion' in video_link %}
+                <div class="video-container">
+                    <div class="plyr__video-embed" id="player-{{ loop.index }}">
+                        <iframe
+                            src="{{ video_link }}"
+                            allowfullscreen
+                            allowtransparency
+                            allow="autoplay"
+                            style="width: 100%; height: 500px;"
+                        ></iframe>
+                    </div>
+                </div>
+            {% endif %}
+        {% endfor %}
+        
+        <a href="{{ url_for('index') }}" class="btn btn-primary mt-3 mb-4">
+            Retour à l'accueil
+        </a>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const players = document.querySelectorAll('.plyr__video-embed');
+        
+        players.forEach(function(player) {
+            new Plyr(player);
+        });
+        
+        if (players.length > 0) {
+            const mainPlayer = players[0];
+            const plyrInstance = new Plyr(mainPlayer);
+            
+            {% if session.user_id %}
+                plyrInstance.on('ready', function() {
+                    const savedProgress = {{ progress|default(0) }};
+                    if (savedProgress > 0) {
+                        plyrInstance.currentTime = savedProgress;
+                    }
+                });
+                
+                let lastSave = 0;
+                plyrInstance.on('timeupdate', function() {
+                    const currentTime = Math.floor(plyrInstance.currentTime);
+                    if (currentTime - lastSave >= 5) {
+                        lastSave = currentTime;
+                        fetch('{{ url_for("save_progress") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                episode_id: {{ request.view_args.episode_id }},
+                                timestamp: currentTime
+                            })
+                        });
+                    }
+                });
+            {% endif %}
+        }
+    });
+    </script>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
