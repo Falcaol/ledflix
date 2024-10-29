@@ -44,6 +44,7 @@ class Episode(Base):
     number = Column(Float, nullable=False)
     anime_id = Column(Integer, ForeignKey('animes.id'), nullable=False)
     air_date = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
     
     anime = relationship("Anime", back_populates="episodes")
 

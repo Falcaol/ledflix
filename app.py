@@ -130,31 +130,26 @@ def get_weekly_anime():
         return ordered_schedule
     return None
 
-def get_latest_episodes(page=1, per_page=9):
-    """Récupère les derniers épisodes avec les informations de leur anime"""
+def get_latest_episodes(page=1, per_page=24):
+    """Récupère les derniers épisodes"""
     session = Session()
     try:
-        # Calculer l'offset pour la pagination
-        offset = (page - 1) * per_page
-        
-        # Récupérer les épisodes avec leurs animes associés
-        episodes = session.query(Episode)\
+        query = session.query(Episode)\
+            .join(Episode.anime)\
             .options(joinedload(Episode.anime))\
-            .join(Anime)\
-            .order_by(desc(Episode.created_at))\
-            .offset(offset)\
-            .limit(per_page)\
-            .all()
+            .order_by(desc(Episode.air_date))\
+            .offset((page - 1) * per_page)\
+            .limit(per_page)
+            
+        episodes = query.all()
         
-        # Compter le nombre total d'épisodes pour la pagination
-        total_episodes = session.query(Episode).count()
-        total_pages = (total_episodes + per_page - 1) // per_page
+        # Compter le total pour la pagination
+        total = session.query(Episode).count()
         
         return {
             'episodes': episodes,
-            'current_page': page,
-            'total_pages': total_pages,
-            'total_episodes': total_episodes
+            'total': total,
+            'pages': (total + per_page - 1) // per_page
         }
     finally:
         session.close()
@@ -416,7 +411,10 @@ def anime_details(anime_id):
         anime = session.query(Anime)\
             .options(joinedload(Anime.episodes))\
             .filter_by(id=anime_id)\
-            .first_or_404()
+            .first()
+            
+        if not anime:
+            abort(404)
 
         # Trier les épisodes par numéro
         episodes = sorted(anime.episodes, key=lambda x: x.number)
