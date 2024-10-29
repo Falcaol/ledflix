@@ -6,6 +6,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import json
 import os
 from dotenv import load_dotenv
+import re
+from sqlalchemy import or_
 
 load_dotenv()
 
@@ -484,11 +486,31 @@ def get_episodes_by_anime_title(title):
     """Récupère les épisodes correspondant à un titre d'anime"""
     session = Session()
     try:
-        # Utiliser la fonction de similarité pour trouver les correspondances
+        # Nettoyer le titre pour la recherche
+        search_terms = [
+            title,  # Titre original
+            title.replace('Season', ''),  # Sans "Season"
+            re.sub(r'\s+\d+$', '', title),  # Sans le numéro de saison
+            title.split(' Season ')[0] if ' Season ' in title else title,  # Première partie avant "Season"
+        ]
+        
+        # Créer une liste de conditions OR pour chaque terme de recherche
+        conditions = []
+        for term in search_terms:
+            conditions.append(Episode.title.ilike(f'%{term}%'))
+            # Ajouter des variantes courantes
+            conditions.append(Episode.title.ilike(f'%{term.replace("no", "\'s")}%'))
+            conditions.append(Episode.title.ilike(f'%{term.replace("no", "")}%'))
+        
+        # Utiliser OR pour toutes les conditions
         episodes = session.query(Episode)\
-            .filter(Episode.title.ilike(f'%{title}%'))\
+            .filter(or_(*conditions))\
             .order_by(Episode.created_at.desc())\
             .all()
+        
+        print(f"Recherche pour '{title}'")
+        print(f"Termes de recherche: {search_terms}")
+        print(f"Épisodes trouvés: {[ep.title for ep in episodes]}")
         
         return episodes
     finally:
