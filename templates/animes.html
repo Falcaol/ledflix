@@ -35,7 +35,7 @@
                                     {% if anime.episodes %}
                                         <div class="list-group">
                                             {% for episode in anime.episodes %}
-                                                <a href="{{ url_for('watch', episode_id=episode.id) }}" 
+                                                <a href="{{ url_for('watch_episode', episode_id=episode.id) }}" 
                                                    class="list-group-item list-group-item-action">
                                                     {{ episode.title }}
                                                 </a>
