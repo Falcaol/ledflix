@@ -69,10 +69,12 @@ def update_episodes():
 
     html_content = response.text
     soup = BeautifulSoup(html_content, 'html.parser')
+    
+    # Récupérer tous les épisodes
     latest_episodes = soup.find_all('div', class_='col-sm-3 col-xs-12', limit=10)
     
-    # Inverser la liste pour traiter d'abord les plus récents
-    latest_episodes = latest_episodes[::-1]
+    # Inverser la liste pour que le plus récent soit traité en premier
+    latest_episodes = list(reversed(latest_episodes))
 
     new_episodes_count = 0
     for episode in latest_episodes:
