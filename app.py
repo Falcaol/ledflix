@@ -5,7 +5,7 @@ import requests
 from datetime import datetime
 from collections import defaultdict, OrderedDict
 from apscheduler.schedulers.background import BackgroundScheduler
-from database import Session, Anime, Episode
+from database import Session, Anime, Episode, Favorite
 import os
 import re
 from sqlalchemy import desc
@@ -353,6 +353,16 @@ def format_date_filter(date):
     if isinstance(date, datetime):
         return date.strftime('%d/%m/%Y à %H:%M')
     return date
+
+def is_favorite(user_id, anime_id):
+    """Vérifie si un anime est dans les favoris d'un utilisateur"""
+    session = Session()
+    try:
+        return session.query(Favorite)\
+            .filter_by(user_id=user_id, anime_id=anime_id)\
+            .first() is not None
+    finally:
+        session.close()
 
 @app.context_processor
 def utility_processor():
