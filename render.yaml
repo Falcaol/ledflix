@@ -3,12 +3,21 @@ services:
     name: animestream
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 4
     envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: animestream_db
           property: connectionString
+      - key: PORT
+        value: 10000
+    buildFilter:
+      paths:
+        - requirements.txt
+        - "**/*.py"
+    autoDeploy: false
+    healthCheckPath: /
+    healthCheckTimeout: 100
 
 databases:
   - name: animestream_db

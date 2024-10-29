@@ -6,9 +6,10 @@ from datetime import datetime
 from collections import defaultdict, OrderedDict
 from apscheduler.schedulers.background import BackgroundScheduler
 import database
+import os
 
 app = Flask(__name__)
-app.secret_key = 'votre_clé_secrète_ici'  # Changez ceci par une vraie clé secrète
+app.secret_key = os.environ.get('SECRET_KEY', 'votre_clé_secrète_par_défaut')
 
 # Définir le décorateur login_required avant de l'utiliser
 def login_required(f):
@@ -195,6 +196,5 @@ def anime_details(anime_id):
                          episodes=anime_data['episodes'])
 
 if __name__ == '__main__':
-    # Mettre à jour les épisodes au démarrage
-    scrap.update_episodes()
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
