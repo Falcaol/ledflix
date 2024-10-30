@@ -109,10 +109,31 @@ session_factory = sessionmaker(bind=engine)
 Session = scoped_session(session_factory)
 
 def extract_anime_title(episode_title):
+    """Extrait et nettoie le titre de l'anime depuis le titre de l'épisode"""
     import re
+    
+    # Cas spéciaux de traduction
+    translations = {
+        'after school': 'Houkago',
+        'hanako kun': 'Hanako-kun'
+    }
+    
+    # Nettoyage de base
     title = re.sub(r'episode\s*\d+.*', '', episode_title, flags=re.IGNORECASE)
     title = re.sub(r'vostfr|vf', '', title, flags=re.IGNORECASE)
-    return title.strip()
+    title = title.strip()
+    
+    # Vérifier les cas spéciaux
+    title_lower = title.lower()
+    for eng, jp in translations.items():
+        if eng in title_lower:
+            title = jp
+            break
+    
+    print(f"Titre original: {episode_title}")
+    print(f"Titre extrait: {title}")
+    
+    return title
 
 def add_episode(episode_data):
     session = Session()
@@ -492,6 +513,8 @@ def get_episodes_by_anime_title(title):
             title.replace('Season', ''),  # Sans "Season"
             re.sub(r'\s+\d+$', '', title),  # Sans le numéro de saison
             title.split(' Season ')[0] if ' Season ' in title else title,  # Première partie avant "Season"
+            'After school' if 'Houkago' in title else title,  # Cas spécial pour Houkago/After school
+            'Hanako kun' if 'Hanako-kun' in title else title,  # Cas spécial pour Hanako-kun
         ]
         
         # Créer une liste de conditions OR pour chaque terme de recherche
@@ -499,11 +522,11 @@ def get_episodes_by_anime_title(title):
         for term in search_terms:
             conditions.append(Episode.title.ilike(f'%{term}%'))
             
-            # Gérer le cas Kamonohashi spécifiquement
-            if 'Kamonohashi' in term:
-                conditions.append(Episode.title.ilike('%Ron Kamonohashi%'))
-                conditions.append(Episode.title.ilike('%Forbidden Deductions%'))
-        
+            # Gérer les cas spéciaux
+            if 'Houkago' in term or 'Hanako-kun' in term:
+                conditions.append(Episode.title.ilike('%After school%'))
+                conditions.append(Episode.title.ilike('%Hanako kun%'))
+            
         # Utiliser OR pour toutes les conditions
         episodes = session.query(Episode)\
             .filter(or_(*conditions))\

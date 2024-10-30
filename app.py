@@ -229,18 +229,13 @@ def animes():
                 continue
                 
             # Créer un dictionnaire pour chaque anime
-            episodes = database.get_episodes_by_anime_title(anime['title'])
             anime_dict = {
                 'title': anime['title'],
                 'image': anime['image'],
                 'next_episode': anime['time'],
-                'episodes': episodes,
-                'has_episodes': len(episodes) > 0  # Ajouter un flag pour les animes avec épisodes
+                'episodes': database.get_episodes_by_anime_title(anime['title'])
             }
             processed_animes.append(anime_dict)
-    
-    # Trier les animes : ceux avec des épisodes en premier
-    processed_animes.sort(key=lambda x: (not x['has_episodes'], x['title'].lower()))
     
     # Récupérer les favoris si l'utilisateur est connecté
     favorites = set()
