@@ -8,6 +8,7 @@ import os
 from dotenv import load_dotenv
 import re
 from sqlalchemy import or_
+from sqlalchemy import func
 
 load_dotenv()
 
@@ -216,8 +217,16 @@ def get_all_animes(page=1, per_page=12):
         offset = (page - 1) * per_page
         total = session.query(Anime).count()
         
+        # Modifier la requête pour trier par nombre d'épisodes
         animes = session.query(Anime)\
-            .order_by(Anime.title)\
+            .outerjoin(Episode)\
+            .group_by(Anime.id)\
+            .order_by(
+                # D'abord trier par présence d'épisodes (DESC pour avoir ceux avec épisodes en premier)
+                func.count(Episode.id).desc(),
+                # Puis par ordre alphabétique
+                Anime.title
+            )\
             .offset(offset)\
             .limit(per_page)\
             .all()
