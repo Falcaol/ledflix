@@ -152,17 +152,27 @@ def add_episode(episode_data):
     try:
         existing_episode = session.query(Episode).filter_by(title=episode_data['title']).first()
         if not existing_episode:
+            # Extraire et nettoyer le titre de l'anime
             anime_title = extract_anime_title(episode_data['title'])
             
-            anime = session.query(Anime).filter_by(title=anime_title).first()
+            # Chercher l'anime existant avec le titre nettoyé
+            anime = session.query(Anime).filter(
+                or_(
+                    Anime.title.ilike(anime_title),
+                    Anime.title.ilike(episode_data.get('api_title', ''))  # Utiliser aussi le titre de l'API
+                )
+            ).first()
+            
             if not anime:
+                # Créer un nouvel anime avec le titre de l'API si disponible
                 anime = Anime(
-                    title=anime_title,
+                    title=episode_data.get('api_title', anime_title),  # Préférer le titre de l'API
                     image=episode_data['image']
                 )
                 session.add(anime)
                 session.flush()
             
+            # Créer le nouvel épisode
             new_episode = Episode(
                 title=episode_data['title'],
                 link=episode_data['link'],
@@ -173,6 +183,7 @@ def add_episode(episode_data):
             )
             session.add(new_episode)
             session.commit()
+            print(f"Nouvel épisode ajouté: {episode_data['title']}")
             return True
         return False
     except Exception as e:
@@ -225,18 +236,18 @@ def get_all_animes(page=1, per_page=12):
         offset = (page - 1) * per_page
         total = session.query(Anime).count()
         
-        # Sous-requête pour compter les épisodes
+        # Sous-requête pour compter les épisodes de manière plus précise
         episode_count = session.query(
             Episode.anime_id,
             func.count(Episode.id).label('episode_count')
         ).group_by(Episode.anime_id).subquery()
         
         # Requête principale avec tri
-        animes = session.query(Anime)\
+        animes = session.query(Anime, func.coalesce(episode_count.c.episode_count, 0).label('ep_count'))\
             .outerjoin(episode_count, Anime.id == episode_count.c.anime_id)\
             .order_by(
-                # Trier d'abord par nombre d'épisodes (NULL en dernier)
-                episode_count.c.episode_count.desc().nullsfirst(),
+                # Trier d'abord par présence d'épisodes
+                func.coalesce(episode_count.c.episode_count, 0).desc(),
                 # Puis par titre
                 Anime.title
             )\
@@ -248,10 +259,10 @@ def get_all_animes(page=1, per_page=12):
         
         animes_list = [
             {
-                'id': anime.id,
-                'title': anime.title,
-                'image': anime.image,
-                'episode_count': len(anime.episodes)
+                'id': anime[0].id,
+                'title': anime[0].title,
+                'image': anime[0].image,
+                'episode_count': anime[1]  # Utiliser le compte exact d'épisodes
             }
             for anime in animes
         ]
