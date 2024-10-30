@@ -233,43 +233,49 @@ def get_all_episodes(page=1, per_page=9):
 def get_all_animes(page=1, per_page=12):
     session = Session()
     try:
-        offset = (page - 1) * per_page
-        total = session.query(Anime).count()
-        
-        # Sous-requête pour compter les épisodes de manière plus précise
-        episode_count = session.query(
+        # Sous-requête pour compter les épisodes
+        episode_counts = session.query(
             Episode.anime_id,
-            func.count(Episode.id).label('episode_count')
+            func.count(Episode.id).label('count')
         ).group_by(Episode.anime_id).subquery()
         
-        # Requête principale avec tri
-        animes = session.query(Anime, func.coalesce(episode_count.c.episode_count, 0).label('ep_count'))\
-            .outerjoin(episode_count, Anime.id == episode_count.c.anime_id)\
+        # Requête principale avec tri explicite
+        query = session.query(Anime)\
+            .outerjoin(episode_counts, Anime.id == episode_counts.c.anime_id)\
+            .add_columns(
+                func.coalesce(episode_counts.c.count, 0).label('episode_count')
+            )
+        
+        # Compter le total
+        total = session.query(Anime).count()
+        
+        # Appliquer le tri et la pagination
+        animes = query\
             .order_by(
-                # Trier d'abord par présence d'épisodes
-                func.coalesce(episode_count.c.episode_count, 0).desc(),
-                # Puis par titre
+                func.coalesce(episode_counts.c.count, 0).desc(),  # Episodes en premier
                 Anime.title
             )\
-            .offset(offset)\
+            .offset((page - 1) * per_page)\
             .limit(per_page)\
             .all()
-            
-        total_pages = (total + per_page - 1) // per_page
+        
+        # Debug: afficher les résultats
+        for anime, count in animes:
+            print(f"Anime: {anime.title}, Episodes: {count}")
         
         animes_list = [
             {
-                'id': anime[0].id,
-                'title': anime[0].title,
-                'image': anime[0].image,
-                'episode_count': anime[1]  # Utiliser le compte exact d'épisodes
+                'id': anime.id,
+                'title': anime.title,
+                'image': anime.image,
+                'episode_count': int(count)
             }
-            for anime in animes
+            for anime, count in animes
         ]
         
         return {
             'animes': animes_list,
-            'total_pages': total_pages,
+            'total_pages': (total + per_page - 1) // per_page,
             'current_page': page
         }
     finally:
