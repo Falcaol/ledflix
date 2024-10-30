@@ -9,9 +9,17 @@ import database
 import os
 from flask_socketio import SocketIO, emit
 from database import add_episode, get_all_episodes, get_episode_by_id
+from flask_cors import CORS
 
 app = Flask(__name__)
-socketio = SocketIO(app)
+CORS(app)
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    async_mode='eventlet',
+    ping_timeout=60,
+    ping_interval=25
+)
 app.secret_key = os.environ.get('SECRET_KEY', 'votre_clé_secrète_par_défaut')
 
 # Définir le décorateur login_required avant de l'utiliser
@@ -211,43 +219,22 @@ def toggle_favorite(anime_id):
 
 @app.route('/animes')
 def animes():
-    search_query = request.args.get('search', '').strip()
+    page = request.args.get('page', 1, type=int)
+    selected_genres = request.args.get('genres', '').split(',')
+    selected_genres = [int(g) for g in selected_genres if g.isdigit()]
     
-    # Récupérer les animes du calendrier
-    weekly_schedule = get_weekly_anime()
-    processed_animes = []
+    # Récupérer tous les genres pour le filtre
+    genres = database.get_all_genres()
     
-    # Traiter chaque anime du calendrier
-    for day, day_animes in weekly_schedule.items():
-        for anime in day_animes:
-            # Si une recherche est active, filtrer les résultats
-            if search_query and search_query.lower() not in anime['title'].lower():
-                continue
-                
-            # Récupérer les épisodes
-            episodes = database.get_episodes_by_anime_title(anime['title'])
-            
-            # Créer un dictionnaire pour chaque anime
-            anime_dict = {
-                'title': anime['title'],
-                'image': anime['image'],
-                'next_episode': anime['time'],
-                'episodes': episodes,
-                'episode_count': len(episodes)  # Ajouter le compte d'épisodes
-            }
-            processed_animes.append(anime_dict)
+    # Récupérer les animes (filtrés si des genres sont sélectionnés)
+    animes_data = database.get_all_animes(page=page, genres=selected_genres)
     
-    # Trier les animes : ceux avec des épisodes en premier
-    processed_animes.sort(key=lambda x: (-x['episode_count'], x['title']))
-    
-    # Récupérer les favoris si l'utilisateur est connecté
-    favorites = set()
-    if 'user_id' in session:
-        favorites = database.get_user_favorites(session['user_id'])
-    
-    return render_template('animes.html', 
-                         weekly_anime=processed_animes,
-                         favorites=favorites)
+    return render_template('animes.html',
+                         animes=animes_data['animes'],
+                         total_pages=animes_data['total_pages'],
+                         current_page=page,
+                         genres=genres,
+                         selected_genres=selected_genres)
 
 @app.route('/anime/<int:anime_id>')
 def anime_details(anime_id):
@@ -345,5 +332,17 @@ def proxy_video(episode_id, player_index):
     # avant de le renvoyer à l'utilisateur
     return redirect(video_url)
 
+@app.route('/animes/filter')
+def filter_animes():
+    selected_genres = request.args.get('genres', '').split(',')
+    filtered_animes = database.get_animes_by_genres(selected_genres)
+    return jsonify({'animes': filtered_animes})
+
 if __name__ == '__main__':
-    socketio.run(app, debug=True)
+    socketio.run(
+        app,
+        debug=True,
+        host='0.0.0.0',
+        port=int(os.environ.get('PORT', 5000)),
+        allow_unsafe_werkzeug=True
+    )

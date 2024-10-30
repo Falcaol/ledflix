@@ -13,110 +13,103 @@
     {% include 'navbar.html' %}
 
     <div class="container mt-4">
-        <div class="search-container mb-4">
-            <form class="search-form" method="GET" action="{{ url_for('animes') }}">
-                <div class="input-group">
-                    <input type="text" 
-                           class="form-control search-input" 
-                           name="search" 
-                           placeholder="Rechercher un anime..."
-                           value="{{ request.args.get('search', '') }}">
-                    <div class="input-group-append">
-                        <button class="btn btn-primary" type="submit">
-                            <i class="fas fa-search"></i>
+        <div class="row">
+            <!-- Sidebar avec filtres -->
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Filtres</h5>
+                        <button id="reset-filters" class="btn btn-sm btn-outline-danger">
+                            <i class="fas fa-undo"></i> Réinitialiser
                         </button>
-                        {% if request.args.get('search') %}
-                            <a href="{{ url_for('animes') }}" class="btn btn-secondary">
-                                <i class="fas fa-times"></i>
-                            </a>
-                        {% endif %}
+                    </div>
+                    <div class="card-body">
+                        <h6>Genres</h6>
+                        <div class="genres-filter">
+                            {% for genre in genres %}
+                            <div class="custom-control custom-checkbox">
+                                <input type="checkbox" class="custom-control-input" id="genre-{{ genre.id }}" 
+                                       value="{{ genre.id }}" {% if genre.id|string in selected_genres|map('string') %}checked{% endif %}>
+                                <label class="custom-control-label" for="genre-{{ genre.id }}">
+                                    {{ genre.name }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
-            </form>
-            {% if request.args.get('search') %}
-                <div class="search-results mt-2">
-                    Résultats pour : "{{ request.args.get('search') }}"
-                </div>
-            {% endif %}
-        </div>
-
-        <div class="row mb-4">
-            <div class="col">
-                <h1>Animes en cours</h1>
             </div>
-        </div>
 
-        {% if weekly_anime %}
-            {% for anime in weekly_anime %}
-                <div class="card anime-card mb-4">
-                    <div class="row no-gutters">
-                        <div class="col-md-3">
-                            <img src="{{ anime.image }}" class="card-img" alt="{{ anime.title }}">
-                        </div>
-                        <div class="col-md-9">
+            <!-- Liste des animes -->
+            <div class="col-md-9">
+                <div class="row" id="anime-list">
+                    {% for anime in animes %}
+                    <div class="col-md-4 mb-4">
+                        <div class="card anime-card">
+                            <img src="{{ anime.image }}" class="card-img-top" alt="{{ anime.title }}">
                             <div class="card-body">
-                                <h5 class="card-title">{{ anime.title }}</h5>
-                                
-                                <div class="episode-list mt-3">
-                                    <h6>Épisodes disponibles :</h6>
-                                    {% if anime.episodes %}
-                                        <div class="list-group">
-                                            {% for episode in anime.episodes %}
-                                                <a href="{{ url_for('watch_episode', episode_id=episode.id) }}" 
-                                                   class="list-group-item list-group-item-action">
-                                                    {{ episode.title }}
-                                                </a>
-                                            {% endfor %}
-                                        </div>
-                                    {% else %}
-                                        <p class="text-muted">Aucun épisode disponible pour le moment.</p>
-                                    {% endif %}
+                                <h5 class="card-title">
+                                    <a href="{{ url_for('anime_details', anime_id=anime.id) }}">{{ anime.title }}</a>
+                                </h5>
+                                {% if anime.genres %}
+                                <div class="genres">
+                                    {% for genre in anime.genres %}
+                                    <span class="badge badge-primary">{{ genre.name }}</span>
+                                    {% endfor %}
                                 </div>
-
-                                <div class="mt-3">
-                                    <p class="card-text">
-                                        <small class="text-muted">
-                                            Prochain épisode : {{ anime.next_episode }}
-                                        </small>
-                                    </p>
-                                </div>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
+                    {% endfor %}
                 </div>
-            {% endfor %}
-        {% else %}
-            <div class="alert alert-info">
-                Aucun anime en cours pour le moment.
+
+                <!-- Pagination -->
+                {% if total_pages > 1 %}
+                <nav aria-label="Page navigation" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% for page_num in range(1, total_pages + 1) %}
+                        <li class="page-item {% if page_num == current_page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('animes', page=page_num) }}">{{ page_num }}</a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </nav>
+                {% endif %}
             </div>
-        {% endif %}
+        </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script>
-        function toggleFavorite(animeId, button) {
-            fetch(`/favorite/${animeId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'added') {
-                    button.classList.add('active');
-                    button.title = 'Retirer des favoris';
-                } else {
-                    button.classList.remove('active');
-                    button.title = 'Ajouter aux favoris';
-                }
-            })
-            .catch(error => {
-                console.error('Erreur:', error);
-            });
+    // Gérer les changements de filtres
+    document.querySelectorAll('.custom-control-input').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            applyFilters();
+        });
+    });
+
+    // Gérer le bouton de réinitialisation
+    document.getElementById('reset-filters').addEventListener('click', function() {
+        // Décocher toutes les cases
+        document.querySelectorAll('.custom-control-input').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        // Rediriger vers la page sans filtres
+        window.location.href = "{{ url_for('animes') }}";
+    });
+
+    function applyFilters() {
+        const selectedGenres = Array.from(document.querySelectorAll('.custom-control-input:checked'))
+            .map(cb => cb.value);
+            
+        // Construire l'URL avec les filtres sélectionnés
+        let url = "{{ url_for('animes') }}";
+        if (selectedGenres.length > 0) {
+            url += "?genres=" + selectedGenres.join(',');
         }
+        
+        window.location.href = url;
+    }
     </script>
 </body>
 </html> 

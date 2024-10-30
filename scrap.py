@@ -6,6 +6,7 @@ from database import add_episode, get_all_episodes
 import re
 import urllib3
 import warnings
+import json
 
 # Désactiver les avertissements SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -26,19 +27,18 @@ def clean_title(title):
 
 def get_anime_info(title, link, video_links, image_url):
     """Récupère les informations de l'anime depuis l'API AnimeSchedule"""
-    url = "https://animeschedule.net/api/v3/timetables/sub"
+    timetable_url = "https://animeschedule.net/api/v3/timetables/sub"
     headers = {
         "Authorization": "Bearer r4hbdBLy5GHD4vo4XqDBkpR2ddtsYh"
     }
     
     try:
-        response = requests.get(url, headers=headers)
+        response = requests.get(timetable_url, headers=headers)
         if response.status_code == 200:
             animes = response.json()
             
             # Nettoyer le titre de recherche
             search_title = clean_title(title)
-            # Extraire le nom de l'anime (sans le numéro d'épisode et autres infos)
             anime_name = re.sub(r'\s*(?:Episode|EP|E|VOSTFR|VF|–|-)\s*\d+.*$', '', search_title, flags=re.IGNORECASE)
             anime_name = re.sub(r'\s*\d+\s*$', '', anime_name).strip()
             
@@ -50,9 +50,8 @@ def get_anime_info(title, link, video_links, image_url):
             for anime in animes:
                 titles_to_check = [
                     anime.get('title', ''),
-                    anime.get('english', ''),
                     anime.get('native', ''),
-                    anime.get('romaji', '')
+                    anime.get('route', '')
                 ]
                 
                 for api_title in titles_to_check:
@@ -60,13 +59,11 @@ def get_anime_info(title, link, video_links, image_url):
                         continue
                     
                     api_title_clean = clean_title(api_title)
-                    # Vérifier la correspondance exacte d'abord
                     if anime_name.lower() == api_title_clean.lower():
                         highest_similarity = 1.0
                         best_match = anime
                         break
                     
-                    # Sinon, vérifier la similarité
                     similarity = similar(anime_name, api_title_clean)
                     if similarity > highest_similarity and similarity > 0.6:
                         highest_similarity = similarity
@@ -80,14 +77,24 @@ def get_anime_info(title, link, video_links, image_url):
                 print(f"Similarité: {highest_similarity:.2f}")
                 print(f"Titre API: {best_match['title']}")
                 
-                # Créer le dictionnaire avec les paramètres reçus
+                # Faire une deuxième requête pour obtenir les genres
+                anime_url = f"https://animeschedule.net/api/v3/anime/{best_match['route']}"
+                anime_response = requests.get(anime_url, headers=headers)
+                genres = []
+                
+                if anime_response.status_code == 200:
+                    anime_data = anime_response.json()
+                    genres = [genre['name'] for genre in anime_data.get('genres', [])]
+                    print(f"Genres trouvés: {genres}")
+                
                 episode_data = {
                     'title': title,
                     'link': link,
                     'video_links': video_links,
                     'image': image_url,
-                    'crunchyroll': f"https://{best_match['streams']['crunchyroll']}" if 'streams' in best_match and 'crunchyroll' in best_match['streams'] else None,
-                    'api_title': best_match['title']
+                    'crunchyroll': best_match.get('streams', {}).get('crunchyroll'),
+                    'api_title': best_match['title'],
+                    'genres': genres
                 }
                 
                 return episode_data
