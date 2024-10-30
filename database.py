@@ -510,36 +510,42 @@ def get_episodes_by_anime_title(title):
     """Récupère les épisodes correspondant à un titre d'anime"""
     session = Session()
     try:
-        # Nettoyer le titre pour la recherche
-        search_terms = [
-            title,  # Titre original
-            title.replace('Season', ''),  # Sans "Season"
-            re.sub(r'\s+\d+$', '', title),  # Sans le numéro de saison
-            title.split(' Season ')[0] if ' Season ' in title else title,  # Première partie avant "Season"
-            'After school' if 'Houkago' in title else title,  # Cas spécial pour Houkago/After school
-            'Hanako kun' if 'Hanako-kun' in title else title,  # Cas spécial pour Hanako-kun
+        # D'abord, trouver l'anime correspondant
+        anime = session.query(Anime).filter(Anime.title.ilike(title)).first()
+        
+        if anime:
+            # Si l'anime est trouvé, retourner tous ses épisodes
+            episodes = session.query(Episode)\
+                .filter_by(anime_id=anime.id)\
+                .order_by(Episode.created_at.desc())\
+                .all()
+            
+            print(f"Recherche pour '{title}'")
+            print(f"Anime trouvé: {anime.title}")
+            print(f"Épisodes trouvés: {[ep.title for ep in episodes]}")
+            
+            return episodes
+        
+        # Si l'anime n'est pas trouvé, essayer avec des variations du titre
+        variations = [
+            title,
+            title.replace('Season', '').strip(),
+            re.sub(r'\s+\d+$', '', title),
+            title.split(' Season ')[0] if ' Season ' in title else title
         ]
         
-        # Créer une liste de conditions OR pour chaque terme de recherche
-        conditions = []
-        for term in search_terms:
-            conditions.append(Episode.title.ilike(f'%{term}%'))
-            
-            # Gérer les cas spéciaux
-            if 'Houkago' in term or 'Hanako-kun' in term:
-                conditions.append(Episode.title.ilike('%After school%'))
-                conditions.append(Episode.title.ilike('%Hanako kun%'))
-            
-        # Utiliser OR pour toutes les conditions
-        episodes = session.query(Episode)\
-            .filter(or_(*conditions))\
-            .order_by(Episode.created_at.desc())\
-            .all()
+        # Chercher avec toutes les variations
+        conditions = [Anime.title.ilike(f"%{v}%") for v in variations]
+        anime = session.query(Anime).filter(or_(*conditions)).first()
         
-        print(f"Recherche pour '{title}'")
-        print(f"Termes de recherche: {search_terms}")
-        print(f"Épisodes trouvés: {[ep.title for ep in episodes]}")
-        
-        return episodes
+        if anime:
+            episodes = session.query(Episode)\
+                .filter_by(anime_id=anime.id)\
+                .order_by(Episode.created_at.desc())\
+                .all()
+            return episodes
+            
+        print(f"Aucun anime trouvé pour '{title}'")
+        return []
     finally:
         session.close()
