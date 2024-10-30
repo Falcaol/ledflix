@@ -66,7 +66,22 @@ def get_anime_info(title):
                             'similarity': similarity
                         }
             
-            return best_match
+            if best_match:
+                print(f"Correspondance trouvée pour {title}")
+                print(f"Similarité: {highest_similarity:.2f}")
+                print(f"Titre API: {best_match['title']}")
+                
+                # Créer le dictionnaire avec le titre de l'API
+                episode_data = {
+                    'title': title,
+                    'link': link,
+                    'video_links': video_links,
+                    'image': image_url,
+                    'crunchyroll': best_match['crunchyroll'],
+                    'api_title': best_match['title']  # Ajouter le titre de l'API
+                }
+                
+                return episode_data
             
     except Exception as e:
         print(f"Erreur lors de la recherche sur AnimeSchedule: {e}")
