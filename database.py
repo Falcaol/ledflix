@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, String, JSON, DateTime, Integer, ForeignKey, Float
+from sqlalchemy import create_engine, Column, String, JSON, DateTime, Integer, ForeignKey, Float, Table
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, scoped_session
 from datetime import datetime
@@ -8,46 +8,33 @@ import os
 from dotenv import load_dotenv
 import re
 from sqlalchemy import or_
-from sqlalchemy import func
 
 load_dotenv()
 
 Base = declarative_base()
 
-# Au début du fichier, après les imports
-TITLE_MAPPINGS = {
-    'Houkago Shounen Hanako-kun': ['After school Hanako kun', 'Toilet-Bound Hanako-kun', 'After school', 'Hanako kun'],
-    'Kamonohashi Ron no Kindan Suiri': ['Ron Kamonohashi\'s Forbidden Deductions', 'Ron Kamonohashi', 'Forbidden Deductions'],
-    'Seirei Gensouki': ['Spirit Chronicles', 'Seirei Gensouki Spirit Chronicles', 'Spirit Chronicles'],
-    'Youkai Gakkou no Sensei Hajimemashita': ['A Terrified Teacher at Ghoul School', 'Terrified Teacher', 'Ghoul School'],
-    'Rekishi ni Nokoru Akujo ni Naru zo': ['I\'ll Become a Villainess That Will Go Down in History', 'Villainess', 'History'],
-    'Amagami-san Chi no Enmusubi': [
-        'Tying the Knot with an Amagami Sister',
-        'The Amagami Household',
-        'Amagami Sister',
-        'Amagami-san',
-        'Amagami'
-    ],
-    'Tasuuketsu': ['TASUKETSU', 'Tasuketsu Fate of the Majority', 'Fate of the Majority'],
-    'Wonderful Precure!': ['Wonderful Precure', 'Precure'],
-    'Natsume Yuujinchou Shichi': ['Natsume Yuujinchou', 'Natsume'],
-    'Raise wa Tanin ga Ii': ['Raise wa Tanin', 'Tanin ga Ii']
-}
+# Table d'association pour la relation many-to-many entre Anime et Genre
+anime_genres = Table('anime_genres', Base.metadata,
+    Column('anime_id', Integer, ForeignKey('animes.id'), primary_key=True),
+    Column('genre_id', Integer, ForeignKey('genres.id'), primary_key=True)
+)
+
+class Genre(Base):
+    __tablename__ = 'genres'
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True)
 
 class Anime(Base):
     __tablename__ = 'animes'
-    
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String, unique=True)
     image = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
     episodes = relationship('Episode', back_populates='anime')
-    genres = relationship('Genre', secondary='anime_genres', back_populates='animes')
-    genre_associations = relationship('AnimeGenre', back_populates='anime', overlaps="genres")
+    genres = relationship('Genre', secondary=anime_genres)
 
 class Episode(Base):
     __tablename__ = 'episodes'
-    
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String, unique=True)
     link = Column(String)
@@ -119,32 +106,11 @@ class ChatMessage(Base):
     
     user = relationship('User')
 
-class Genre(Base):
-    __tablename__ = 'genres'
-    
-    id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True)
-    animes = relationship('Anime', secondary='anime_genres', back_populates='genres')
-
-class AnimeGenre(Base):
-    __tablename__ = 'anime_genres'
-    
-    id = Column(Integer, primary_key=True)
-    anime_id = Column(Integer, ForeignKey('animes.id'))
-    genre_id = Column(Integer, ForeignKey('genres.id'))
-    
-    anime = relationship('Anime', back_populates='genre_associations', overlaps="genres")
-    genre = relationship('Genre', back_populates='anime_associations', overlaps="animes")
-
 # Configuration de la base de données
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///anime.db')
-
 engine = create_engine(DATABASE_URL)
 Base.metadata.create_all(engine)
-
-# Créer une session thread-safe
-session_factory = sessionmaker(bind=engine)
-Session = scoped_session(session_factory)
+Session = scoped_session(sessionmaker(bind=engine))
 
 def extract_anime_title(episode_title):
     """Extrait et nettoie le titre de l'anime depuis le titre de l'épisode"""
