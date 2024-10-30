@@ -113,29 +113,37 @@ def extract_anime_title(episode_title):
     """Extrait et nettoie le titre de l'anime depuis le titre de l'épisode"""
     import re
     
-    # Cas spéciaux de traduction avec plus de précision
+    # Dictionnaire de correspondance entre les titres anglais et japonais
     translations = {
-        'after school hanako kun': 'Houkago Shounen Hanako-kun',
-        'after school': 'Houkago Shounen',
-        'hanako kun': 'Hanako-kun',
-        'houkago shounen hanako kun': 'Houkago Shounen Hanako-kun',
-        'houkago shounen hanako-kun': 'Houkago Shounen Hanako-kun'
+        'after school hanako kun': ['Houkago Shounen Hanako-kun', 'Toilet-Bound Hanako-kun'],
+        'ron kamonohashi\'s forbidden deductions': ['Kamonohashi Ron no Kindan Suiri', 'Ron Kamonohashi: Forbidden Deductions'],
+        'seirei gensouki spirit chronicles': ['Seirei Gensouki', 'Spirit Chronicles'],
+        'a terrified teacher at ghoul school': ['Youkai Gakkou no Sensei Hajimemashita', 'A Terrified Teacher at Ghoul School'],
+        'i\'ll become a villainess': ['Rekishi ni Nokoru Akujo ni Naru zo', 'I\'ll Become a Villainess That Will Go Down in History'],
+        'tying the knot with an amagami sister': ['Amagami-san Chi no Enmusubi', 'The Amagami Household'],
+        'tasuketsu fate of the majority': ['Tasuuketsu', 'TASUKETSU']
     }
     
     # Nettoyage de base
-    title = re.sub(r'episode\s*\d+.*', '', episode_title, flags=re.IGNORECASE)
+    title = re.sub(r'(?:episode|ep|e)\s*\d+.*', '', episode_title, flags=re.IGNORECASE)
     title = re.sub(r'vostfr|vf', '', title, flags=re.IGNORECASE)
+    title = re.sub(r'\s*-\s*', ' ', title)  # Nettoie les tirets
     title = re.sub(r'\s+', ' ', title)  # Normalise les espaces
     title = title.strip().lower()  # Convertit en minuscules pour la comparaison
     
-    # Vérifier les cas spéciaux du plus spécifique au plus général
-    for eng, jp in translations.items():
+    # Enlever les numéros de saison
+    title = re.sub(r'\s*\d(?:nd|rd|th)?\s*season\s*', '', title)
+    title = re.sub(r'\s+\d+$', '', title)
+    
+    # Vérifier les correspondances dans le dictionnaire
+    for eng, titles in translations.items():
         if eng in title:
-            title = jp
+            # Utiliser le premier titre (japonais) comme référence
+            title = titles[0]
             break
     
     print(f"Titre original: {episode_title}")
-    print(f"Titre extrait: {title}")
+    print(f"Titre nettoyé: {title}")
     
     return title
 
