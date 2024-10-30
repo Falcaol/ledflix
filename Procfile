@@ -1,2 +1,2 @@
-web: gunicorn --worker-class eventlet --worker-connections 1000 --timeout 120 app:app
+web: gunicorn --worker-class geventwebsocket.gunicorn.workers.GeventWebSocketWorker --workers 1 --threads 100 --timeout 120 app:app
 release: python init_db.py 
