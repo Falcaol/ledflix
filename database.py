@@ -217,14 +217,19 @@ def get_all_animes(page=1, per_page=12):
         offset = (page - 1) * per_page
         total = session.query(Anime).count()
         
-        # Modifier la requête pour trier par nombre d'épisodes
+        # Sous-requête pour compter les épisodes
+        episode_count = session.query(
+            Episode.anime_id,
+            func.count(Episode.id).label('episode_count')
+        ).group_by(Episode.anime_id).subquery()
+        
+        # Requête principale avec tri
         animes = session.query(Anime)\
-            .outerjoin(Episode)\
-            .group_by(Anime.id)\
+            .outerjoin(episode_count, Anime.id == episode_count.c.anime_id)\
             .order_by(
-                # D'abord trier par présence d'épisodes (DESC pour avoir ceux avec épisodes en premier)
-                func.count(Episode.id).desc(),
-                # Puis par ordre alphabétique
+                # Trier d'abord par nombre d'épisodes (NULL en dernier)
+                episode_count.c.episode_count.desc().nullsfirst(),
+                # Puis par titre
                 Anime.title
             )\
             .offset(offset)\
