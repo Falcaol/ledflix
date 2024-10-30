@@ -8,6 +8,70 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        .chat-container {
+            background-color: var(--bg-card);
+            border-radius: 10px;
+            margin-top: 30px;
+            padding: 20px;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .chat-messages {
+            height: 400px;
+            overflow-y: auto;
+            padding: 15px;
+            background-color: var(--bg-dark);
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+
+        .chat-message {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 5px;
+            background-color: var(--bg-card);
+        }
+
+        .chat-message .username {
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+
+        .chat-message .time {
+            font-size: 0.8em;
+            color: var(--text-secondary);
+            margin-left: 10px;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input input {
+            flex-grow: 1;
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+        }
+
+        .chat-input button {
+            padding: 10px 20px;
+            border-radius: 5px;
+        }
+
+        .system-message {
+            text-align: center;
+            color: var(--text-secondary);
+            font-style: italic;
+            margin: 10px 0;
+        }
+    </style>
 </head>
 <body>
     {% include 'navbar.html' %}
@@ -65,21 +129,13 @@
         </nav>
         {% endif %}
 
-        <!-- Remplacer la section du chat par ce nouveau code -->
         {% if session.user_id %}
         <div class="chat-container">
-            <div class="chat-header">
-                <h3>Chat Général</h3>
-                <span class="online-users">
-                    <i class="fas fa-circle"></i> En ligne
-                </span>
-            </div>
-            <div class="chat-messages" id="chat-messages">
-                <!-- Les messages seront ajoutés ici dynamiquement -->
-            </div>
+            <h3>Chat Général</h3>
+            <div class="chat-messages" id="chat-messages"></div>
             <div class="chat-input">
                 <input type="text" id="message-input" placeholder="Écrivez votre message...">
-                <button id="send-message" class="btn btn-primary">
+                <button id="send-button" class="btn btn-primary">
                     <i class="fas fa-paper-plane"></i>
                 </button>
             </div>
@@ -87,81 +143,52 @@
         {% endif %}
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
-    const chatMessages = document.getElementById('chat-messages');
-    const messageInput = document.getElementById('message-input');
-    const sendButton = document.getElementById('send-message');
+        const socket = io();
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const chatMessages = document.getElementById('chat-messages');
 
-    function addMessage(message, isOwn = false) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `chat-message ${isOwn ? 'own-message' : ''}`;
-        messageDiv.innerHTML = `
-            <div class="message-header">
-                <span class="username">${message.username}</span>
-                <span class="time">${message.time}</span>
-            </div>
-            <div class="message-content">${message.message}</div>
-        `;
-        chatMessages.appendChild(messageDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
+        function addMessage(data) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message';
+            messageDiv.innerHTML = `
+                <span class="username">${data.username}</span>
+                <span class="time">${data.time}</span>
+                <div class="message-content">${data.message}</div>
+            `;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
 
-    function loadMessages() {
-        fetch('/chat/messages')
-            .then(response => response.json())
-            .then(messages => {
-                chatMessages.innerHTML = '';
-                messages.forEach(message => {
-                    addMessage(message, message.username === '{{ session.username }}');
-                });
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            addMessage({
+                username: 'Système',
+                time: new Date().toLocaleTimeString(),
+                message: 'Connecté au chat'
             });
-    }
+        });
 
-    function sendMessage() {
-        const message = messageInput.value.trim();
-        if (!message) return;
+        socket.on('message', (data) => {
+            addMessage(data);
+        });
 
-        // Créer et afficher le message localement immédiatement
-        const localMessage = {
-            username: '{{ session.username }}',
-            message: message,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-        addMessage(localMessage, true);
-        messageInput.value = '';
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (message) {
+                socket.emit('message', { message: message });
+                messageInput.value = '';
+            }
+        }
 
-        // Envoyer au serveur
-        fetch('/chat/send', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ message })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (!data.success) {
-                // En cas d'erreur, recharger tous les messages
-                loadMessages();
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
             }
         });
-    }
-
-    sendButton.addEventListener('click', sendMessage);
-    messageInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            sendMessage();
-        }
-    });
-
-    // Charger les messages initiaux
-    loadMessages();
-
-    // Rafraîchir les messages toutes les 5 secondes
-    setInterval(loadMessages, 5000);
     </script>
 </body>
 </html>

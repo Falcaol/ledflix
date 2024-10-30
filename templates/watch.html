@@ -6,11 +6,12 @@
     <title>{{ episode.title }}</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
         .video-container {
             position: relative;
-            padding-bottom: 56.25%; /* Ratio 16:9 */
+            padding-bottom: 56.25%;
             height: 0;
             overflow: hidden;
             margin-bottom: 20px;
@@ -34,6 +35,40 @@
             padding: 10px;
             background-color: var(--bg-card);
             border-radius: 5px;
+        }
+
+        /* Style pour le système de notation */
+        .rating {
+            display: inline-block;
+            font-size: 24px;
+            cursor: pointer;
+            direction: rtl;
+        }
+
+        .rating .star {
+            color: #ccc;
+            transition: color 0.2s;
+            padding: 0 2px;
+            display: inline-block;
+        }
+
+        .rating .star.active,
+        .rating .star:hover,
+        .rating .star:hover ~ .star {
+            color: #ffd700;
+        }
+
+        .ratings-container {
+            background-color: var(--bg-card);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+        }
+
+        .ratings-stats {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
     </style>
 </head>
@@ -65,10 +100,62 @@
             {% endif %}
         {% endfor %}
 
-        <div class="ratings mt-4">
-            <p>Moyenne : <span id="average-rating">{{ ratings.average }}</span>/5</p>
-            <p>Nombre de votes : {{ ratings.count }}</p>
+        <div class="ratings-container">
+            <h4>Noter cet épisode</h4>
+            <div class="rating" id="rating">
+                <span class="star" data-value="5"><i class="fas fa-star"></i></span>
+                <span class="star" data-value="4"><i class="fas fa-star"></i></span>
+                <span class="star" data-value="3"><i class="fas fa-star"></i></span>
+                <span class="star" data-value="2"><i class="fas fa-star"></i></span>
+                <span class="star" data-value="1"><i class="fas fa-star"></i></span>
+            </div>
+            <div class="ratings-stats">
+                <p>Moyenne : <span id="average-rating">{{ ratings.average if ratings else 0 }}</span>/5</p>
+                <p>Nombre de votes : <span id="ratings-count">{{ ratings.count if ratings else 0 }}</span></p>
+            </div>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const stars = document.querySelectorAll('.star');
+            const averageRating = {{ ratings.average if ratings else 0 }};
+
+            // Mettre à jour l'affichage initial des étoiles
+            updateStars(averageRating);
+
+            stars.forEach(star => {
+                star.addEventListener('click', function() {
+                    const value = parseFloat(this.dataset.value);
+                    
+                    // Envoyer la note au serveur
+                    fetch('/rate/{{ episode.id }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ rating: value })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        // Mettre à jour l'affichage
+                        document.getElementById('average-rating').textContent = data.average;
+                        document.getElementById('ratings-count').textContent = data.count;
+                        updateStars(data.average);
+                    });
+                });
+            });
+
+            function updateStars(rating) {
+                stars.forEach(star => {
+                    const value = parseFloat(star.dataset.value);
+                    star.classList.remove('active');
+                    if (value <= rating) {
+                        star.classList.add('active');
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html>

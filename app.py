@@ -306,16 +306,33 @@ def health_check():
 # Ajoutez ces fonctions pour gérer les événements Socket.IO
 @socketio.on('connect')
 def handle_connect():
-    print('Client connected')
+    print(f'Client connected: {session.get("username", "Anonymous")}')
+    emit('message', {
+        'username': 'Système',
+        'message': f'{session.get("username", "Anonymous")} a rejoint le chat',
+        'time': datetime.now().strftime('%H:%M')
+    }, broadcast=True)
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print(f'Client disconnected: {session.get("username", "Anonymous")}')
+    emit('message', {
+        'username': 'Système',
+        'message': f'{session.get("username", "Anonymous")} a quitté le chat',
+        'time': datetime.now().strftime('%H:%M')
+    }, broadcast=True)
 
 @socketio.on('message')
 def handle_message(data):
-    username = session.get('username', 'Anonymous')
-    emit('message', {
-        'username': username,
+    if 'user_id' not in session:
+        return
+    
+    message = {
+        'username': session['username'],
         'message': data['message'],
         'time': datetime.now().strftime('%H:%M')
-    }, broadcast=True)
+    }
+    emit('message', message, broadcast=True)
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
