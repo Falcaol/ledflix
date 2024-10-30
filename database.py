@@ -43,7 +43,7 @@ class Anime(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     episodes = relationship('Episode', back_populates='anime')
     genres = relationship('Genre', secondary='anime_genres', back_populates='animes')
-    genre_associations = relationship('AnimeGenre', back_populates='anime')
+    genre_associations = relationship('AnimeGenre', back_populates='anime', overlaps="genres")
 
 class Episode(Base):
     __tablename__ = 'episodes'
