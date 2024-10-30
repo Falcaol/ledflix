@@ -42,7 +42,8 @@ class Anime(Base):
     image = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
     episodes = relationship('Episode', back_populates='anime')
-    genres = relationship('Genre', secondary='anime_genres')
+    genres = relationship('Genre', secondary='anime_genres', back_populates='animes')
+    genre_associations = relationship('AnimeGenre', back_populates='anime')
 
 class Episode(Base):
     __tablename__ = 'episodes'
@@ -123,6 +124,7 @@ class Genre(Base):
     
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True)
+    animes = relationship('Anime', secondary='anime_genres', back_populates='genres')
 
 class AnimeGenre(Base):
     __tablename__ = 'anime_genres'
@@ -131,8 +133,8 @@ class AnimeGenre(Base):
     anime_id = Column(Integer, ForeignKey('animes.id'))
     genre_id = Column(Integer, ForeignKey('genres.id'))
     
-    anime = relationship('Anime')
-    genre = relationship('Genre')
+    anime = relationship('Anime', back_populates='genre_associations', overlaps="genres")
+    genre = relationship('Genre', back_populates='anime_associations', overlaps="animes")
 
 # Configuration de la base de données
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///anime.db')

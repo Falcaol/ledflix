@@ -18,7 +18,10 @@ socketio = SocketIO(
     cors_allowed_origins="*",
     async_mode='eventlet',
     ping_timeout=60,
-    ping_interval=25
+    ping_interval=25,
+    manage_session=False,
+    logger=True,
+    engineio_logger=True
 )
 app.secret_key = os.environ.get('SECRET_KEY', 'votre_clé_secrète_par_défaut')
 
@@ -344,5 +347,6 @@ if __name__ == '__main__':
         debug=True,
         host='0.0.0.0',
         port=int(os.environ.get('PORT', 5000)),
-        allow_unsafe_werkzeug=True
+        allow_unsafe_werkzeug=True,
+        log_output=True
     )
