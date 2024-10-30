@@ -112,21 +112,24 @@ def extract_anime_title(episode_title):
     """Extrait et nettoie le titre de l'anime depuis le titre de l'épisode"""
     import re
     
-    # Cas spéciaux de traduction
+    # Cas spéciaux de traduction avec plus de précision
     translations = {
-        'after school': 'Houkago',
-        'hanako kun': 'Hanako-kun'
+        'after school hanako kun': 'Houkago Shounen Hanako-kun',
+        'after school': 'Houkago Shounen',
+        'hanako kun': 'Hanako-kun',
+        'houkago shounen hanako kun': 'Houkago Shounen Hanako-kun',
+        'houkago shounen hanako-kun': 'Houkago Shounen Hanako-kun'
     }
     
     # Nettoyage de base
     title = re.sub(r'episode\s*\d+.*', '', episode_title, flags=re.IGNORECASE)
     title = re.sub(r'vostfr|vf', '', title, flags=re.IGNORECASE)
-    title = title.strip()
+    title = re.sub(r'\s+', ' ', title)  # Normalise les espaces
+    title = title.strip().lower()  # Convertit en minuscules pour la comparaison
     
-    # Vérifier les cas spéciaux
-    title_lower = title.lower()
+    # Vérifier les cas spéciaux du plus spécifique au plus général
     for eng, jp in translations.items():
-        if eng in title_lower:
+        if eng in title:
             title = jp
             break
     
