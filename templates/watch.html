@@ -78,6 +78,15 @@
     <div class="container mt-4">
         <h1 class="mb-4">{{ episode.title }}</h1>
 
+        <div class="alert alert-warning mb-3">
+            <i class="fas fa-exclamation-triangle"></i>
+            Pour une meilleure expérience, nous vous recommandons d'utiliser un bloqueur de publicités.
+            {% if episode.crunchyroll %}
+            <br>
+            Vous pouvez également regarder cet épisode légalement sur Crunchyroll.
+            {% endif %}
+        </div>
+
         {% if episode.crunchyroll %}
         <div class="crunchyroll-container mb-4">
             <h4>Regarder sur Crunchyroll</h4>
@@ -93,7 +102,13 @@
                 <div class="video-wrapper">
                     <div class="video-title">Lecteur {{ lecteur_count }}</div>
                     <div class="video-container">
-                        <iframe src="{{ link }}" allowfullscreen></iframe>
+                        <iframe 
+                            src="{{ link }}?autoplay=0&mute=1&controls=1&rel=0&showinfo=0&modestbranding=1" 
+                            allowfullscreen
+                            sandbox="allow-same-origin allow-scripts"
+                            loading="lazy"
+                            referrerpolicy="no-referrer"
+                        ></iframe>
                     </div>
                 </div>
                 {% set lecteur_count = lecteur_count + 1 %}

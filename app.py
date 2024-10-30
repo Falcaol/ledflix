@@ -334,5 +334,16 @@ def handle_message(data):
     }
     emit('message', message, broadcast=True)
 
+@app.route('/proxy/video/<int:episode_id>/<int:player_index>')
+def proxy_video(episode_id, player_index):
+    episode = get_episode_by_id(episode_id)
+    if not episode or player_index >= len(episode['video_links']):
+        return "Video not found", 404
+        
+    video_url = episode['video_links'][player_index]
+    # Ici, vous pouvez implémenter la logique pour récupérer et filtrer le contenu vidéo
+    # avant de le renvoyer à l'utilisateur
+    return redirect(video_url)
+
 if __name__ == '__main__':
     socketio.run(app, debug=True)

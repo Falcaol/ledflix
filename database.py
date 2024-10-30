@@ -646,17 +646,27 @@ def get_episode_by_id(episode_id):
     try:
         episode = session.query(Episode).get(episode_id)
         if episode:
-            print(f"Épisode trouvé: {episode.title} (ID: {episode.id})")  # Log pour déboguer
+            # Filtrer les liens vidéo problématiques
+            video_links = json.loads(episode.video_links) if episode.video_links else []
+            filtered_links = [
+                link for link in video_links 
+                if not any(domain in link.lower() for domain in [
+                    'dailymotion.com',
+                    'streamtape.com',  # Lecteur avec beaucoup de pubs
+                    'voe.sx',          # Lecteur avec anti-adblock
+                    # Ajoutez d'autres domaines problématiques ici
+                ])
+            ]
+            
             return {
                 'id': episode.id,
                 'title': episode.title,
                 'link': episode.link,
-                'video_links': json.loads(episode.video_links) if episode.video_links else [],
+                'video_links': filtered_links,
                 'image': episode.image,
                 'crunchyroll': episode.crunchyroll,
                 'anime_id': episode.anime_id
             }
-        print(f"Aucun épisode trouvé pour l'ID: {episode_id}")  # Log pour déboguer
         return None
     finally:
         session.close()
