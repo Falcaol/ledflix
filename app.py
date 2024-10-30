@@ -7,8 +7,11 @@ from collections import defaultdict, OrderedDict
 from apscheduler.schedulers.background import BackgroundScheduler
 import database
 import os
+from flask_socketio import SocketIO, emit
+from database import add_episode, get_all_episodes, get_episode_by_id
 
 app = Flask(__name__)
+socketio = SocketIO(app)
 app.secret_key = os.environ.get('SECRET_KEY', 'votre_clé_secrète_par_défaut')
 
 # Définir le décorateur login_required avant de l'utiliser
@@ -103,25 +106,18 @@ def index():
 
 @app.route('/watch/<int:episode_id>')
 def watch_episode(episode_id):
-    episodes_data = scrap.get_latest_episodes()
-    if episode_id >= len(episodes_data['episodes']):
-        abort(404)
-    episode = episodes_data['episodes'][episode_id]
+    print(f"Tentative d'affichage de l'épisode avec ID: {episode_id}")  # Log pour déboguer
+    episode = get_episode_by_id(episode_id)
+    if not episode:
+        return "Episode not found", 404
     
-    # Récupérer la progression si l'utilisateur est connecté
-    progress = 0
-    user_rating = 0
-    if 'user_id' in session:
-        progress = database.get_watch_progress(session['user_id'], episode_id)
-        user_rating = database.get_user_rating(session['user_id'], episode_id)
+    # Log pour vérifier l'ID de l'épisode
+    print(f"Affichage de l'épisode ID: {episode_id}, Titre: {episode['title']}")
     
+    # Récupérer les évaluations de l'épisode
     ratings = database.get_episode_ratings(episode_id)
     
-    return render_template('watch.html', 
-                         episode=episode, 
-                         progress=progress,
-                         ratings=ratings,
-                         user_rating=user_rating)
+    return render_template('watch.html', episode=episode, ratings=ratings)
 
 @app.route('/save-progress', methods=['POST'])
 @login_required
@@ -228,14 +224,21 @@ def animes():
             if search_query and search_query.lower() not in anime['title'].lower():
                 continue
                 
+            # Récupérer les épisodes
+            episodes = database.get_episodes_by_anime_title(anime['title'])
+            
             # Créer un dictionnaire pour chaque anime
             anime_dict = {
                 'title': anime['title'],
                 'image': anime['image'],
                 'next_episode': anime['time'],
-                'episodes': database.get_episodes_by_anime_title(anime['title'])
+                'episodes': episodes,
+                'episode_count': len(episodes)  # Ajouter le compte d'épisodes
             }
             processed_animes.append(anime_dict)
+    
+    # Trier les animes : ceux avec des épisodes en premier
+    processed_animes.sort(key=lambda x: (-x['episode_count'], x['title']))
     
     # Récupérer les favoris si l'utilisateur est connecté
     favorites = set()
@@ -300,6 +303,19 @@ def send_message():
 def health_check():
     return jsonify({"status": "ok"}), 200
 
+# Ajoutez ces fonctions pour gérer les événements Socket.IO
+@socketio.on('connect')
+def handle_connect():
+    print('Client connected')
+
+@socketio.on('message')
+def handle_message(data):
+    username = session.get('username', 'Anonymous')
+    emit('message', {
+        'username': username,
+        'message': data['message'],
+        'time': datetime.now().strftime('%H:%M')
+    }, broadcast=True)
+
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    socketio.run(app, debug=True)

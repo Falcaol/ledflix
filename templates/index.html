@@ -16,16 +16,19 @@
         <h1 class="mb-4">Derniers Épisodes</h1>
         <div class="row">
             {% for episode in episodes %}
-                <div class="col-md-4 mb-4">
+                <div class="col-md-3 mb-4">
                     <div class="card anime-card">
                         <img src="{{ episode.image }}" class="card-img-top" alt="{{ episode.title }}">
                         <div class="card-body">
                             <h5 class="card-title">
-                                <a href="{{ url_for('watch_episode', episode_id=loop.index0) }}">{{ episode.title }}</a>
+                                <a href="{{ url_for('watch_episode', episode_id=episode.id) }}">{{ episode.title }}</a>
                             </h5>
                         </div>
                     </div>
                 </div>
+                {% if loop.index % 4 == 0 and not loop.last %}
+                    </div><div class="row">
+                {% endif %}
             {% else %}
                 <div class="col-12">
                     <div class="alert alert-warning">Aucun épisode trouvé.</div>

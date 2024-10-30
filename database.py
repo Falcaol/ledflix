@@ -14,6 +14,26 @@ load_dotenv()
 
 Base = declarative_base()
 
+# Au début du fichier, après les imports
+TITLE_MAPPINGS = {
+    'Houkago Shounen Hanako-kun': ['After school Hanako kun', 'Toilet-Bound Hanako-kun', 'After school', 'Hanako kun'],
+    'Kamonohashi Ron no Kindan Suiri': ['Ron Kamonohashi\'s Forbidden Deductions', 'Ron Kamonohashi', 'Forbidden Deductions'],
+    'Seirei Gensouki': ['Spirit Chronicles', 'Seirei Gensouki Spirit Chronicles', 'Spirit Chronicles'],
+    'Youkai Gakkou no Sensei Hajimemashita': ['A Terrified Teacher at Ghoul School', 'Terrified Teacher', 'Ghoul School'],
+    'Rekishi ni Nokoru Akujo ni Naru zo': ['I\'ll Become a Villainess That Will Go Down in History', 'Villainess', 'History'],
+    'Amagami-san Chi no Enmusubi': [
+        'Tying the Knot with an Amagami Sister',
+        'The Amagami Household',
+        'Amagami Sister',
+        'Amagami-san',
+        'Amagami'
+    ],
+    'Tasuuketsu': ['TASUKETSU', 'Tasuketsu Fate of the Majority', 'Fate of the Majority'],
+    'Wonderful Precure!': ['Wonderful Precure', 'Precure'],
+    'Natsume Yuujinchou Shichi': ['Natsume Yuujinchou', 'Natsume'],
+    'Raise wa Tanin ga Ii': ['Raise wa Tanin', 'Tanin ga Ii']
+}
+
 class Anime(Base):
     __tablename__ = 'animes'
     
@@ -99,8 +119,6 @@ class ChatMessage(Base):
 
 # Configuration de la base de données
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///anime.db')
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 engine = create_engine(DATABASE_URL)
 Base.metadata.create_all(engine)
@@ -120,7 +138,10 @@ def extract_anime_title(episode_title):
         'seirei gensouki spirit chronicles': ['Seirei Gensouki', 'Spirit Chronicles'],
         'a terrified teacher at ghoul school': ['Youkai Gakkou no Sensei Hajimemashita', 'A Terrified Teacher at Ghoul School'],
         'i\'ll become a villainess': ['Rekishi ni Nokoru Akujo ni Naru zo', 'I\'ll Become a Villainess That Will Go Down in History'],
-        'tying the knot with an amagami sister': ['Amagami-san Chi no Enmusubi', 'The Amagami Household'],
+        'tying the knot with an amagami sister': [
+            'Amagami-san Chi no Enmusubi',
+            'The Amagami Household'
+        ],
         'tasuketsu fate of the majority': ['Tasuuketsu', 'TASUKETSU']
     }
     
@@ -150,41 +171,51 @@ def extract_anime_title(episode_title):
 def add_episode(episode_data):
     session = Session()
     try:
+        # Vérifier si l'épisode existe déjà
         existing_episode = session.query(Episode).filter_by(title=episode_data['title']).first()
         if not existing_episode:
             # Extraire et nettoyer le titre de l'anime
             anime_title = extract_anime_title(episode_data['title'])
             
-            # Chercher l'anime existant avec le titre nettoyé
+            # Chercher l'anime existant avec le titre API
             anime = session.query(Anime).filter(
                 or_(
-                    Anime.title.ilike(anime_title),
-                    Anime.title.ilike(episode_data.get('api_title', ''))  # Utiliser aussi le titre de l'API
+                    Anime.title == episode_data.get('api_title'),
+                    Anime.title.ilike(f"%{anime_title}%")
                 )
             ).first()
             
             if not anime:
-                # Créer un nouvel anime avec le titre de l'API si disponible
+                # Si l'anime n'existe pas, le créer
                 anime = Anime(
-                    title=episode_data.get('api_title', anime_title),  # Préférer le titre de l'API
+                    title=episode_data.get('api_title', anime_title),
                     image=episode_data['image']
                 )
                 session.add(anime)
                 session.flush()
+                print(f"Nouvel anime créé: {anime.title}")
             
-            # Créer le nouvel épisode
+            # S'assurer que le lien est valide
+            if not episode_data.get('link'):
+                print(f"Erreur: lien manquant pour l'épisode {episode_data['title']}")
+                return False
+                
+            # Créer le nouvel épisode avec tous les liens
             new_episode = Episode(
                 title=episode_data['title'],
-                link=episode_data['link'],
-                video_links=json.dumps(episode_data['video_links']),
+                link=episode_data['link'],  # Lien direct vers la page de l'épisode
+                video_links=json.dumps(episode_data.get('video_links', [])),
                 image=episode_data['image'],
                 crunchyroll=episode_data.get('crunchyroll'),
                 anime_id=anime.id
             )
             session.add(new_episode)
             session.commit()
-            print(f"Nouvel épisode ajouté: {episode_data['title']}")
+            print(f"Nouvel épisode ajouté: {episode_data['title']} pour l'anime {anime.title} (ID: {anime.id})")
+            print(f"Lien de l'épisode: {episode_data['link']}")
             return True
+        
+        print(f"L'épisode existe déjà: {episode_data['title']}")
         return False
     except Exception as e:
         print(f"Erreur lors de l'ajout de l'épisode: {e}")
@@ -193,31 +224,30 @@ def add_episode(episode_data):
     finally:
         session.close()
 
-def get_all_episodes(page=1, per_page=9):
+def get_all_episodes(page=1, per_page=12):
     session = Session()
     try:
-        # Calculer le total et le nombre de pages
-        total = session.query(Episode).count()
-        total_pages = (total + per_page - 1) // per_page
-        
-        # Calculer l'offset pour la pagination
         offset = (page - 1) * per_page
+        total = session.query(Episode).count()
         
-        # Récupérer les épisodes dans l'ordre décroissant de création
+        # Récupérer les épisodes triés par ID décroissant
         episodes = session.query(Episode)\
-            .order_by(Episode.created_at.desc())\
+            .order_by(Episode.id.desc())\
             .offset(offset)\
             .limit(per_page)\
             .all()
+            
+        total_pages = (total + per_page - 1) // per_page
         
-        # Convertir les épisodes en dictionnaire
         episodes_list = [
             {
+                'id': episode.id,
                 'title': episode.title,
                 'link': episode.link,
-                'video_links': json.loads(episode.video_links),
+                'video_links': json.loads(episode.video_links) if episode.video_links else [],
                 'image': episode.image,
-                'crunchyroll': episode.crunchyroll
+                'crunchyroll': episode.crunchyroll,
+                'anime_id': episode.anime_id
             }
             for episode in episodes
         ]
@@ -233,49 +263,50 @@ def get_all_episodes(page=1, per_page=9):
 def get_all_animes(page=1, per_page=12):
     session = Session()
     try:
+        offset = (page - 1) * per_page
+        
         # Sous-requête pour compter les épisodes
         episode_counts = session.query(
             Episode.anime_id,
-            func.count(Episode.id).label('count')
+            func.count(Episode.id).label('count'),
+            func.max(Episode.created_at).label('latest_episode')  # Ajout de la date du dernier épisode
         ).group_by(Episode.anime_id).subquery()
         
-        # Requête principale avec tri explicite
-        query = session.query(Anime)\
-            .outerjoin(episode_counts, Anime.id == episode_counts.c.anime_id)\
-            .add_columns(
-                func.coalesce(episode_counts.c.count, 0).label('episode_count')
-            )
+        # Requête principale
+        query = session.query(
+            Anime,
+            func.coalesce(episode_counts.c.count, 0).label('episode_count'),
+            func.coalesce(episode_counts.c.latest_episode, '1970-01-01').label('latest_episode')  # Date par défaut pour les animes sans épisodes
+        ).outerjoin(
+            episode_counts,
+            Anime.id == episode_counts.c.anime_id
+        )
         
-        # Compter le total
-        total = session.query(Anime).count()
+        # Compter le total avant la pagination
+        total = query.count()
         
         # Appliquer le tri et la pagination
-        animes = query\
-            .order_by(
-                func.coalesce(episode_counts.c.count, 0).desc(),  # Episodes en premier
-                Anime.title
-            )\
-            .offset((page - 1) * per_page)\
-            .limit(per_page)\
-            .all()
+        animes = query.order_by(
+            func.coalesce(episode_counts.c.count, 0).desc(),  # D'abord par nombre d'épisodes
+            'latest_episode.desc()',  # Puis par date du dernier épisode
+            Anime.title  # Enfin par titre
+        ).offset(offset).limit(per_page).all()
         
-        # Debug: afficher les résultats
-        for anime, count in animes:
-            print(f"Anime: {anime.title}, Episodes: {count}")
+        total_pages = (total + per_page - 1) // per_page
         
         animes_list = [
             {
                 'id': anime.id,
                 'title': anime.title,
                 'image': anime.image,
-                'episode_count': int(count)
+                'episode_count': int(episode_count)
             }
-            for anime, count in animes
+            for anime, episode_count, _ in animes
         ]
         
         return {
             'animes': animes_list,
-            'total_pages': (total + per_page - 1) // per_page,
+            'total_pages': total_pages,
             'current_page': page
         }
     finally:
@@ -486,7 +517,7 @@ def get_episode_ratings(episode_id):
     try:
         ratings = session.query(Rating).filter_by(episode_id=episode_id).all()
         if not ratings:
-            return {'average': 0, 'count': 0, 'user_rating': 0}
+            return {'average': 0, 'count': 0}
             
         total = sum(r.rating for r in ratings)
         average = total / len(ratings)
@@ -546,14 +577,54 @@ def get_chat_messages(limit=50):
         session.close()
 
 def get_episodes_by_anime_title(title):
-    """Récupère les épisodes correspondant à un titre d'anime"""
+    """Récupre les épisodes correspondant à un titre d'anime"""
     session = Session()
     try:
-        # D'abord, trouver l'anime correspondant
-        anime = session.query(Anime).filter(Anime.title.ilike(title)).first()
+        # Dictionnaire de correspondance entre les différentes versions des titres
+        title_mappings = {
+            'Houkago Shounen Hanako-kun': ['After school Hanako kun', 'Toilet-Bound Hanako-kun', 'After school', 'Hanako kun'],
+            'Kamonohashi Ron no Kindan Suiri': ['Ron Kamonohashi\'s Forbidden Deductions', 'Ron Kamonohashi', 'Forbidden Deductions'],
+            'Seirei Gensouki': ['Spirit Chronicles', 'Seirei Gensouki Spirit Chronicles', 'Spirit Chronicles'],
+            'Youkai Gakkou no Sensei Hajimemashita': ['A Terrified Teacher at Ghoul School', 'Terrified Teacher', 'Ghoul School'],
+            'Rekishi ni Nokoru Akujo ni Naru zo': ['I\'ll Become a Villainess That Will Go Down in History', 'Villainess', 'History'],
+            'Amagami-san Chi no Enmusubi': [
+                'Tying the Knot with an Amagami Sister',
+                'The Amagami Household',
+                'Amagami Sister',
+                'Amagami-san',
+                'Amagami'
+            ],
+            'Tasuuketsu': ['TASUKETSU', 'Tasuketsu Fate of the Majority', 'Fate of the Majority'],
+            'Wonderful Precure!': ['Wonderful Precure', 'Precure'],
+            'Natsume Yuujinchou Shichi': ['Natsume Yuujinchou', 'Natsume'],
+            'Raise wa Tanin ga Ii': ['Raise wa Tanin', 'Tanin ga Ii']
+        }
+
+        # Nettoyer le titre de recherche
+        clean_title = re.sub(r'(?:episode|ep|e)\s*\d+.*', '', title, flags=re.IGNORECASE)
+        clean_title = re.sub(r'vostfr|vf', '', clean_title, flags=re.IGNORECASE)
+        clean_title = re.sub(r'\s*-\s*', ' ', clean_title)
+        clean_title = clean_title.strip().lower()
+
+        # Créer une liste de tous les titres possibles
+        possible_titles = [clean_title]
         
+        # Ajouter les variations connues
+        for main_title, variants in title_mappings.items():
+            if any(variant.lower() in clean_title for variant in variants):
+                possible_titles.append(main_title.lower())
+            if main_title.lower() in clean_title:
+                possible_titles.extend(variant.lower() for variant in variants)
+
+        # Créer les conditions de recherche
+        conditions = [
+            Anime.title.ilike(f"%{t}%") for t in possible_titles
+        ]
+
+        # Rechercher l'anime
+        anime = session.query(Anime).filter(or_(*conditions)).first()
+
         if anime:
-            # Si l'anime est trouvé, retourner tous ses épisodes
             episodes = session.query(Episode)\
                 .filter_by(anime_id=anime.id)\
                 .order_by(Episode.created_at.desc())\
@@ -564,27 +635,28 @@ def get_episodes_by_anime_title(title):
             print(f"Épisodes trouvés: {[ep.title for ep in episodes]}")
             
             return episodes
-        
-        # Si l'anime n'est pas trouvé, essayer avec des variations du titre
-        variations = [
-            title,
-            title.replace('Season', '').strip(),
-            re.sub(r'\s+\d+$', '', title),
-            title.split(' Season ')[0] if ' Season ' in title else title
-        ]
-        
-        # Chercher avec toutes les variations
-        conditions = [Anime.title.ilike(f"%{v}%") for v in variations]
-        anime = session.query(Anime).filter(or_(*conditions)).first()
-        
-        if anime:
-            episodes = session.query(Episode)\
-                .filter_by(anime_id=anime.id)\
-                .order_by(Episode.created_at.desc())\
-                .all()
-            return episodes
-            
+
         print(f"Aucun anime trouvé pour '{title}'")
         return []
+    finally:
+        session.close()
+
+def get_episode_by_id(episode_id):
+    session = Session()
+    try:
+        episode = session.query(Episode).get(episode_id)
+        if episode:
+            print(f"Épisode trouvé: {episode.title} (ID: {episode.id})")  # Log pour déboguer
+            return {
+                'id': episode.id,
+                'title': episode.title,
+                'link': episode.link,
+                'video_links': json.loads(episode.video_links) if episode.video_links else [],
+                'image': episode.image,
+                'crunchyroll': episode.crunchyroll,
+                'anime_id': episode.anime_id
+            }
+        print(f"Aucun épisode trouvé pour l'ID: {episode_id}")  # Log pour déboguer
+        return None
     finally:
         session.close()
