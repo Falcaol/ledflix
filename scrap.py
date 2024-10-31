@@ -12,7 +12,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 warnings.filterwarnings('ignore', message='Unverified HTTPS request')
 
 def similar(a, b):
-    # Fonction pour calculer la similarité entre deux chaînes
+    # Fonction pour calculer la similarité entre deux chaînes okok
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 def clean_title(title):
