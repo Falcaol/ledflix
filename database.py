@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import re
 from sqlalchemy import or_
 from sqlalchemy import func
+from sqlalchemy import Table
 
 load_dotenv()
 
@@ -34,6 +35,18 @@ TITLE_MAPPINGS = {
     'Raise wa Tanin ga Ii': ['Raise wa Tanin', 'Tanin ga Ii']
 }
 
+# Ajouter cette table d'association
+anime_genres = Table('anime_genres', Base.metadata,
+    Column('anime_id', Integer, ForeignKey('animes.id'), primary_key=True),
+    Column('genre_id', Integer, ForeignKey('genres.id'), primary_key=True)
+)
+
+class Genre(Base):
+    __tablename__ = 'genres'
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True)
+    animes = relationship('Anime', secondary=anime_genres, back_populates='genres')
+
 class Anime(Base):
     __tablename__ = 'animes'
     
@@ -42,6 +55,7 @@ class Anime(Base):
     image = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
     episodes = relationship('Episode', back_populates='anime')
+    genres = relationship('Genre', secondary=anime_genres, back_populates='animes')
 
 class Episode(Base):
     __tablename__ = 'episodes'
@@ -191,6 +205,16 @@ def add_episode(episode_data):
                     title=episode_data.get('api_title', anime_title),
                     image=episode_data['image']
                 )
+                
+                # Ajouter les genres
+                if 'genres' in episode_data:
+                    for genre_name in episode_data['genres']:
+                        genre = session.query(Genre).filter_by(name=genre_name).first()
+                        if not genre:
+                            genre = Genre(name=genre_name)
+                            session.add(genre)
+                        anime.genres.append(genre)
+                
                 session.add(anime)
                 session.flush()
                 print(f"Nouvel anime créé: {anime.title}")
@@ -260,7 +284,7 @@ def get_all_episodes(page=1, per_page=12):
     finally:
         session.close()
 
-def get_all_animes(page=1, per_page=12):
+def get_all_animes(page=1, per_page=12, genre_ids=None):
     session = Session()
     try:
         offset = (page - 1) * per_page
@@ -269,27 +293,32 @@ def get_all_animes(page=1, per_page=12):
         episode_counts = session.query(
             Episode.anime_id,
             func.count(Episode.id).label('count'),
-            func.max(Episode.created_at).label('latest_episode')  # Ajout de la date du dernier épisode
+            func.max(Episode.created_at).label('latest_episode')
         ).group_by(Episode.anime_id).subquery()
         
         # Requête principale
         query = session.query(
             Anime,
             func.coalesce(episode_counts.c.count, 0).label('episode_count'),
-            func.coalesce(episode_counts.c.latest_episode, '1970-01-01').label('latest_episode')  # Date par défaut pour les animes sans épisodes
+            func.coalesce(episode_counts.c.latest_episode, '1970-01-01').label('latest_episode')
         ).outerjoin(
             episode_counts,
             Anime.id == episode_counts.c.anime_id
         )
+        
+        # Filtrer par genres si spécifié
+        if genre_ids and genre_ids[0]:  # Vérifier que la liste n'est pas vide
+            query = query.join(anime_genres).join(Genre).\
+                    filter(Genre.id.in_(genre_ids))
         
         # Compter le total avant la pagination
         total = query.count()
         
         # Appliquer le tri et la pagination
         animes = query.order_by(
-            func.coalesce(episode_counts.c.count, 0).desc(),  # D'abord par nombre d'épisodes
-            'latest_episode.desc()',  # Puis par date du dernier épisode
-            Anime.title  # Enfin par titre
+            func.coalesce(episode_counts.c.count, 0).desc(),
+            episode_counts.c.latest_episode.desc(),
+            Anime.title
         ).offset(offset).limit(per_page).all()
         
         total_pages = (total + per_page - 1) // per_page
@@ -299,7 +328,8 @@ def get_all_animes(page=1, per_page=12):
                 'id': anime.id,
                 'title': anime.title,
                 'image': anime.image,
-                'episode_count': int(episode_count)
+                'episode_count': int(episode_count),
+                'genres': [genre.name for genre in anime.genres]
             }
             for anime, episode_count, _ in animes
         ]
@@ -332,6 +362,7 @@ def get_anime_episodes(anime_id):
             },
             'episodes': [
                 {
+                    'id': episode.id,
                     'title': episode.title,
                     'link': episode.link,
                     'video_links': json.loads(episode.video_links),
@@ -646,27 +677,31 @@ def get_episode_by_id(episode_id):
     try:
         episode = session.query(Episode).get(episode_id)
         if episode:
-            # Filtrer les liens vidéo problématiques
+            # Récupérer tous les liens vidéo
             video_links = json.loads(episode.video_links) if episode.video_links else []
+            
+            # Filtrer les liens Dailymotion
             filtered_links = [
                 link for link in video_links 
-                if not any(domain in link.lower() for domain in [
-                    'dailymotion.com',
-                    'streamtape.com',  # Lecteur avec beaucoup de pubs
-                    'voe.sx',          # Lecteur avec anti-adblock
-                    # Ajoutez d'autres domaines problématiques ici
-                ])
+                if 'dailymotion.com' not in link.lower()
             ]
             
             return {
                 'id': episode.id,
                 'title': episode.title,
                 'link': episode.link,
-                'video_links': filtered_links,
+                'video_links': filtered_links,  # Utiliser les liens filtrés
                 'image': episode.image,
                 'crunchyroll': episode.crunchyroll,
                 'anime_id': episode.anime_id
             }
         return None
+    finally:
+        session.close()
+
+def get_all_genres():
+    session = Session()
+    try:
+        return session.query(Genre).order_by(Genre.name).all()
     finally:
         session.close()

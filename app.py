@@ -211,43 +211,24 @@ def toggle_favorite(anime_id):
 
 @app.route('/animes')
 def animes():
-    search_query = request.args.get('search', '').strip()
+    page = request.args.get('page', 1, type=int)
+    search = request.args.get('search', '')
+    genre_ids = request.args.getlist('genres', type=int)  # Récupérer les genres sélectionnés
     
-    # Récupérer les animes du calendrier
-    weekly_schedule = get_weekly_anime()
-    processed_animes = []
+    # Récupérer tous les genres pour le filtre
+    genres = database.get_all_genres()
     
-    # Traiter chaque anime du calendrier
-    for day, day_animes in weekly_schedule.items():
-        for anime in day_animes:
-            # Si une recherche est active, filtrer les résultats
-            if search_query and search_query.lower() not in anime['title'].lower():
-                continue
-                
-            # Récupérer les épisodes
-            episodes = database.get_episodes_by_anime_title(anime['title'])
-            
-            # Créer un dictionnaire pour chaque anime
-            anime_dict = {
-                'title': anime['title'],
-                'image': anime['image'],
-                'next_episode': anime['time'],
-                'episodes': episodes,
-                'episode_count': len(episodes)  # Ajouter le compte d'épisodes
-            }
-            processed_animes.append(anime_dict)
+    if search:
+        animes_data = database.search_animes(search, page=page)
+    else:
+        animes_data = database.get_all_animes(page=page, genre_ids=genre_ids)
     
-    # Trier les animes : ceux avec des épisodes en premier
-    processed_animes.sort(key=lambda x: (-x['episode_count'], x['title']))
-    
-    # Récupérer les favoris si l'utilisateur est connecté
-    favorites = set()
-    if 'user_id' in session:
-        favorites = database.get_user_favorites(session['user_id'])
-    
-    return render_template('animes.html', 
-                         weekly_anime=processed_animes,
-                         favorites=favorites)
+    return render_template('animes.html',
+                         animes=animes_data['animes'],
+                         total_pages=animes_data['total_pages'],
+                         current_page=page,
+                         genres=genres,
+                         selected_genres=genre_ids)
 
 @app.route('/anime/<int:anime_id>')
 def anime_details(anime_id):

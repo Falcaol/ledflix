@@ -9,58 +9,70 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark">
-        <div class="container">
-            <a class="navbar-brand" href="{{ url_for('index') }}">AnimeStream</a>
-            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ml-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('index') }}">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('animes') }}">Animes</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('calendar') }}">Calendrier</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+    {% include 'navbar.html' %}
 
     <div class="container mt-4">
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <img src="{{ anime.image }}" class="img-fluid rounded" alt="{{ anime.title }}">
-            </div>
-            <div class="col-md-9">
-                <h1>{{ anime.title }}</h1>
-                <p>{{ episodes|length }} épisodes disponibles</p>
-            </div>
-        </div>
-
-        <h2 class="mb-4">Épisodes</h2>
         <div class="row">
-            {% for episode in episodes %}
-                <div class="col-md-4 mb-4">
-                    <div class="card anime-card">
-                        <img src="{{ episode.image }}" class="card-img-top" alt="{{ episode.title }}">
-                        <div class="card-body">
-                            <h5 class="card-title">
-                                <a href="{{ url_for('watch_episode', episode_id=episode.id) }}">{{ episode.title }}</a>
-                            </h5>
-                        </div>
+            <div class="col-md-4">
+                <div class="card anime-card">
+                    <img src="{{ anime.image }}" class="card-img-top" alt="{{ anime.title }}">
+                    <div class="card-body">
+                        <h1 class="card-title">{{ anime.title }}</h1>
+                        {% if session.user_id %}
+                        <button onclick="toggleFavorite({{ anime.id }}, this)" 
+                                class="btn btn-favorite {% if is_favorite %}active{% endif %}"
+                                title="{% if is_favorite %}Retirer des favoris{% else %}Ajouter aux favoris{% endif %}">
+                            <i class="fas fa-heart"></i>
+                        </button>
+                        {% endif %}
                     </div>
                 </div>
-            {% endfor %}
+            </div>
+            
+            <div class="col-md-8">
+                <h2>Épisodes</h2>
+                <div class="list-group">
+                    {% for episode in episodes %}
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{{ url_for('watch_episode', episode_id=episode.id) }}" class="episode-link">
+                                {{ episode.title }}
+                            </a>
+                            {% if episode.crunchyroll %}
+                            <a href="{{ episode.crunchyroll }}" target="_blank" class="btn btn-sm btn-crunchyroll">
+                                <i class="fas fa-play"></i> Crunchyroll
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
         </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        function toggleFavorite(animeId, button) {
+            fetch(`/favorite/${animeId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'added') {
+                    button.classList.add('active');
+                    button.title = 'Retirer des favoris';
+                } else {
+                    button.classList.remove('active');
+                    button.title = 'Ajouter aux favoris';
+                }
+            })
+            .catch(error => {
+                console.error('Erreur:', error);
+            });
+        }
+    </script>
 </body>
 </html> 

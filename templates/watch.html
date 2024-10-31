@@ -76,16 +76,7 @@
     {% include 'navbar.html' %}
 
     <div class="container mt-4">
-        <h1 class="mb-4">{{ episode.title }}</h1>
-
-        <div class="alert alert-warning mb-3">
-            <i class="fas fa-exclamation-triangle"></i>
-            Pour une meilleure expérience, nous vous recommandons d'utiliser un bloqueur de publicités.
-            {% if episode.crunchyroll %}
-            <br>
-            Vous pouvez également regarder cet épisode légalement sur Crunchyroll.
-            {% endif %}
-        </div>
+        <h1>{{ episode.title }}</h1>
 
         {% if episode.crunchyroll %}
         <div class="crunchyroll-container mb-4">
@@ -96,39 +87,14 @@
         </div>
         {% endif %}
 
-        {% set lecteur_count = 1 %}
         {% for link in episode.video_links %}
-            {% if 'dailymotion.com' not in link %}
-                <div class="video-wrapper">
-                    <div class="video-title">Lecteur {{ lecteur_count }}</div>
-                    <div class="video-container">
-                        <iframe 
-                            src="{{ link }}?autoplay=0&mute=1&controls=1&rel=0&showinfo=0&modestbranding=1" 
-                            allowfullscreen
-                            sandbox="allow-same-origin allow-scripts"
-                            loading="lazy"
-                            referrerpolicy="no-referrer"
-                        ></iframe>
-                    </div>
-                </div>
-                {% set lecteur_count = lecteur_count + 1 %}
-            {% endif %}
-        {% endfor %}
-
-        <div class="ratings-container">
-            <h4>Noter cet épisode</h4>
-            <div class="rating" id="rating">
-                <span class="star" data-value="5"><i class="fas fa-star"></i></span>
-                <span class="star" data-value="4"><i class="fas fa-star"></i></span>
-                <span class="star" data-value="3"><i class="fas fa-star"></i></span>
-                <span class="star" data-value="2"><i class="fas fa-star"></i></span>
-                <span class="star" data-value="1"><i class="fas fa-star"></i></span>
-            </div>
-            <div class="ratings-stats">
-                <p>Moyenne : <span id="average-rating">{{ ratings.average if ratings else 0 }}</span>/5</p>
-                <p>Nombre de votes : <span id="ratings-count">{{ ratings.count if ratings else 0 }}</span></p>
+        <div class="video-wrapper mb-4">
+            <div class="video-title">Lecteur {{ loop.index }}</div>
+            <div class="video-container">
+                <iframe src="{{ link }}" allowfullscreen></iframe>
             </div>
         </div>
+        {% endfor %}
     </div>
 
     <script>

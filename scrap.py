@@ -38,62 +38,45 @@ def get_anime_info(title, link, video_links, image_url):
             
             # Nettoyer le titre de recherche
             search_title = clean_title(title)
-            # Extraire le nom de l'anime (sans le numéro d'épisode et autres infos)
-            anime_name = re.sub(r'\s*(?:Episode|EP|E|VOSTFR|VF|–|-)\s*\d+.*$', '', search_title, flags=re.IGNORECASE)
-            anime_name = re.sub(r'\s*\d+\s*$', '', anime_name).strip()
-            
-            print(f"Recherche pour le titre nettoyé: {anime_name}")
             
             best_match = None
             highest_similarity = 0
             
             for anime in animes:
+                # Vérifier tous les titres possibles
                 titles_to_check = [
                     anime.get('title', ''),
                     anime.get('english', ''),
-                    anime.get('native', ''),
-                    anime.get('romaji', '')
+                    anime.get('romaji', ''),
                 ]
                 
                 for api_title in titles_to_check:
                     if not api_title:
                         continue
-                    
-                    api_title_clean = clean_title(api_title)
-                    # Vérifier la correspondance exacte d'abord
-                    if anime_name.lower() == api_title_clean.lower():
-                        highest_similarity = 1.0
-                        best_match = anime
-                        break
-                    
-                    # Sinon, vérifier la similarité
-                    similarity = similar(anime_name, api_title_clean)
-                    if similarity > highest_similarity and similarity > 0.6:
+                        
+                    similarity = similar(search_title, api_title)
+                    if similarity > highest_similarity:
                         highest_similarity = similarity
                         best_match = anime
                 
-                if highest_similarity == 1.0:
-                    break
-            
-            if best_match:
-                print(f"Correspondance trouvée pour {title}")
-                print(f"Similarité: {highest_similarity:.2f}")
-                print(f"Titre API: {best_match['title']}")
+            if best_match and highest_similarity > 0.6:
+                # Faire un deuxième appel API pour obtenir les détails complets
+                anime_details_url = f"https://animeschedule.net/api/v3/anime/{best_match['route']}"
+                details_response = requests.get(anime_details_url, headers=headers)
                 
-                # Créer le dictionnaire avec les paramètres reçus
-                episode_data = {
-                    'title': title,
-                    'link': link,
-                    'video_links': video_links,
-                    'image': image_url,
-                    'crunchyroll': f"https://{best_match['streams']['crunchyroll']}" if 'streams' in best_match and 'crunchyroll' in best_match['streams'] else None,
-                    'api_title': best_match['title']
-                }
-                
-                return episode_data
-            else:
-                print(f"Aucune correspondance trouvée pour: {title}")
-            
+                if details_response.status_code == 200:
+                    anime_details = details_response.json()
+                    genres = [genre['name'] for genre in anime_details.get('genres', [])]
+                    
+                    return {
+                        'title': title,
+                        'link': link,
+                        'video_links': video_links,
+                        'image': image_url,
+                        'crunchyroll': f"https://{best_match['streams'].get('crunchyroll', '')}" if 'streams' in best_match and 'crunchyroll' in best_match['streams'] else None,
+                        'api_title': best_match['title'],
+                        'genres': genres  # Ajout des genres
+                    }
     except Exception as e:
         print(f"Erreur lors de la recherche sur AnimeSchedule: {e}")
     return None
@@ -192,7 +175,7 @@ def get_latest_episodes(page=1):
     """Fonction pour récupérer les derniers épisodes depuis la base de données"""
     episodes = get_all_episodes(page=page, per_page=12)
     
-    # Trier les épisodes par ID décroissant pour avoir les plus récents en premier
+    # Trier les pisodes par ID décroissant pour avoir les plus récents en premier
     if 'episodes' in episodes:
         episodes['episodes'] = sorted(
             episodes['episodes'],
