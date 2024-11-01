@@ -71,24 +71,119 @@
             font-style: italic;
             margin: 10px 0;
         }
+
+        /* Hero Section */
+        .hero-section {
+            background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.9)), url('/static/images/hero-bg.jpg');
+            background-size: cover;
+            background-position: center;
+            padding: 100px 0;
+            margin-bottom: 50px;
+            text-align: center;
+        }
+
+        .hero-content {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .hero-title {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+        }
+
+        .hero-subtitle {
+            font-size: 1.5rem;
+            font-weight: 500;
+            margin-bottom: 30px;
+            color: var(--text-secondary);
+        }
+
+        .search-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .search-form {
+            display: flex;
+            justify-content: center;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            background-color: var(--bg-card);
+            color: var(--text-primary);
+        }
+
+        .search-button {
+            padding: 10px 20px;
+            border-radius: 5px;
+            margin-left: 10px;
+        }
+
+        .card-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .card-link:hover {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .card-link .anime-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card-link:hover .anime-card {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+        }
     </style>
 </head>
 <body>
     {% include 'navbar.html' %}
+
+    <div class="hero-section">
+        <div class="hero-content">
+            <h1 class="hero-title">Découvrez les Derniers Animes</h1>
+            <p class="hero-subtitle">Les meilleurs animes en streaming, mis à jour quotidiennement</p>
+            <div class="search-container">
+                <form class="search-form" action="{{ url_for('animes') }}" method="GET">
+                    <div class="input-group">
+                        <input type="text" name="search" class="form-control search-input" 
+                               placeholder="Rechercher un anime...">
+                        <div class="input-group-append">
+                            <button class="btn btn-primary" type="submit">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <div class="container mt-4">
         <h1 class="mb-4">Derniers Épisodes</h1>
         <div class="row">
             {% for episode in episodes %}
                 <div class="col-md-3 mb-4">
-                    <div class="card anime-card">
-                        <img src="{{ episode.image }}" class="card-img-top" alt="{{ episode.title }}">
-                        <div class="card-body">
-                            <h5 class="card-title">
-                                <a href="{{ url_for('watch_episode', episode_id=episode.id) }}">{{ episode.title }}</a>
-                            </h5>
+                    <a href="{{ url_for('watch_episode', episode_id=episode.id) }}" class="card-link">
+                        <div class="card anime-card">
+                            <img src="{{ episode.image }}" class="card-img-top" alt="{{ episode.title }}">
+                            <div class="card-body">
+                                <h5 class="card-title">{{ episode.title }}</h5>
+                            </div>
                         </div>
-                    </div>
+                    </a>
                 </div>
                 {% if loop.index % 4 == 0 and not loop.last %}
                     </div><div class="row">

@@ -10,6 +10,8 @@ import re
 from sqlalchemy import or_
 from sqlalchemy import func
 from sqlalchemy import Table
+import requests
+from difflib import SequenceMatcher
 
 load_dotenv()
 
@@ -28,6 +30,20 @@ TITLE_MAPPINGS = {
         'Amagami Sister',
         'Amagami-san',
         'Amagami'
+    ],
+    'Danmachi': [
+        'DanMachi',
+        'Is It Wrong to Try to Pick Up Girls in a Dungeon?',
+        'Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka',
+        'Danmachi (Saison 5)',
+        'Danmachi Saison 5',
+        'Danmachi Season 5',
+        'Danmachi S5',
+        'DanMachi 5',
+        'Danmachi V',
+        'Dan Machi',
+        'Dan-Machi',
+        'Dungeon ni Deai'
     ],
     'Tasuuketsu': ['TASUKETSU', 'Tasuketsu Fate of the Majority', 'Fate of the Majority'],
     'Wonderful Precure!': ['Wonderful Precure', 'Precure'],
@@ -143,43 +159,32 @@ Session = scoped_session(session_factory)
 
 def extract_anime_title(episode_title):
     """Extrait et nettoie le titre de l'anime depuis le titre de l'épisode"""
-    import re
-    
-    # Dictionnaire de correspondance entre les titres anglais et japonais
-    translations = {
-        'after school hanako kun': ['Houkago Shounen Hanako-kun', 'Toilet-Bound Hanako-kun'],
-        'ron kamonohashi\'s forbidden deductions': ['Kamonohashi Ron no Kindan Suiri', 'Ron Kamonohashi: Forbidden Deductions'],
-        'seirei gensouki spirit chronicles': ['Seirei Gensouki', 'Spirit Chronicles'],
-        'a terrified teacher at ghoul school': ['Youkai Gakkou no Sensei Hajimemashita', 'A Terrified Teacher at Ghoul School'],
-        'i\'ll become a villainess': ['Rekishi ni Nokoru Akujo ni Naru zo', 'I\'ll Become a Villainess That Will Go Down in History'],
-        'tying the knot with an amagami sister': [
-            'Amagami-san Chi no Enmusubi',
-            'The Amagami Household'
-        ],
-        'tasuketsu fate of the majority': ['Tasuuketsu', 'TASUKETSU']
-    }
+    print(f"[DEBUG] Traitement du titre: {episode_title}")
     
     # Nettoyage de base
     title = re.sub(r'(?:episode|ep|e)\s*\d+.*', '', episode_title, flags=re.IGNORECASE)
+    print(f"[DEBUG] Après nettoyage des numéros d'épisode: {title}")
+    
     title = re.sub(r'vostfr|vf', '', title, flags=re.IGNORECASE)
-    title = re.sub(r'\s*-\s*', ' ', title)  # Nettoie les tirets
-    title = re.sub(r'\s+', ' ', title)  # Normalise les espaces
-    title = title.strip().lower()  # Convertit en minuscules pour la comparaison
+    title = re.sub(r'\s*-\s*', ' ', title)
+    title = re.sub(r'\s+', ' ', title)
+    title = title.strip().lower()
+    print(f"[DEBUG] Titre nettoyé: {title}")
     
-    # Enlever les numéros de saison
-    title = re.sub(r'\s*\d(?:nd|rd|th)?\s*season\s*', '', title)
-    title = re.sub(r'\s+\d+$', '', title)
+    # Vérifier les correspondances dans TITLE_MAPPINGS
+    for main_title, alt_titles in TITLE_MAPPINGS.items():
+        if main_title.lower() in title:
+            print(f"[DEBUG] Correspondance trouvée avec titre principal: {main_title}")
+            return main_title
+        
+        # Vérifier les titres alternatifs
+        for alt_title in alt_titles:
+            alt_title_lower = alt_title.lower()
+            if alt_title_lower in title or title in alt_title_lower:
+                print(f"[DEBUG] Correspondance trouvée avec titre alternatif: {alt_title} -> {main_title}")
+                return main_title
     
-    # Vérifier les correspondances dans le dictionnaire
-    for eng, titles in translations.items():
-        if eng in title:
-            # Utiliser le premier titre (japonais) comme référence
-            title = titles[0]
-            break
-    
-    print(f"Titre original: {episode_title}")
-    print(f"Titre nettoyé: {title}")
-    
+    print(f"[DEBUG] Aucune correspondance trouvée, retour du titre: {title}")
     return title
 
 def add_episode(episode_data):
@@ -254,9 +259,9 @@ def get_all_episodes(page=1, per_page=12):
         offset = (page - 1) * per_page
         total = session.query(Episode).count()
         
-        # Récupérer les épisodes triés par ID décroissant
+        # Récupérer les épisodes triés par date de création décroissante
         episodes = session.query(Episode)\
-            .order_by(Episode.id.desc())\
+            .order_by(Episode.created_at.desc())\
             .offset(offset)\
             .limit(per_page)\
             .all()
@@ -271,7 +276,8 @@ def get_all_episodes(page=1, per_page=12):
                 'video_links': json.loads(episode.video_links) if episode.video_links else [],
                 'image': episode.image,
                 'crunchyroll': episode.crunchyroll,
-                'anime_id': episode.anime_id
+                'anime_id': episode.anime_id,
+                'created_at': episode.created_at.isoformat()  # Ajouter la date de création
             }
             for episode in episodes
         ]
@@ -625,6 +631,20 @@ def get_episodes_by_anime_title(title):
                 'Amagami-san',
                 'Amagami'
             ],
+            'Danmachi': [
+                'DanMachi',
+                'Is It Wrong to Try to Pick Up Girls in a Dungeon?',
+                'Dungeon ni Deai wo Motomeru no wa Machigatteiru Darou ka',
+                'Danmachi (Saison 5)',
+                'Danmachi Saison 5',
+                'Danmachi Season 5',
+                'Danmachi S5',
+                'DanMachi 5',
+                'Danmachi V',
+                'Dan Machi',
+                'Dan-Machi',
+                'Dungeon ni Deai'
+            ],
             'Tasuuketsu': ['TASUKETSU', 'Tasuketsu Fate of the Majority', 'Fate of the Majority'],
             'Wonderful Precure!': ['Wonderful Precure', 'Precure'],
             'Natsume Yuujinchou Shichi': ['Natsume Yuujinchou', 'Natsume'],
@@ -705,3 +725,62 @@ def get_all_genres():
         return session.query(Genre).order_by(Genre.name).all()
     finally:
         session.close()
+
+def get_anime_by_title(title):
+    session = Session()
+    try:
+        return session.query(Anime).filter(
+            or_(
+                Anime.title.ilike(f"%{title}%"),
+                Anime.title == title
+            )
+        ).first()
+    finally:
+        session.close()
+
+def get_unmatched_episodes(page=1, per_page=12):
+    session = Session()
+    try:
+        # Récupérer tous les épisodes qui n'ont pas d'anime associé
+        unmatched_episodes = session.query(Episode)\
+            .filter(Episode.anime_id == None)\
+            .order_by(Episode.created_at.desc())\
+            .all()
+        
+        # Pagination manuelle
+        total = len(unmatched_episodes)
+        total_pages = (total + per_page - 1) // per_page
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+        paginated_episodes = unmatched_episodes[start_idx:end_idx]
+        
+        episodes_list = [
+            {
+                'id': episode.id,
+                'title': episode.title,
+                'link': episode.link,
+                'image': episode.image,
+                'created_at': episode.created_at.strftime('%Y-%m-%d %H:%M:%S')
+            }
+            for episode in paginated_episodes
+        ]
+        
+        return {
+            'episodes': episodes_list,
+            'total_pages': total_pages,
+            'current_page': page,
+            'total': total
+        }
+    finally:
+        session.close()
+
+def clean_title(title):
+    """Nettoie un titre pour la comparaison"""
+    # Supprimer les numéros d'épisode, les caractères spéciaux, etc.
+    title = re.sub(r'(?:episode|ep|e)\s*\d+.*', '', title, flags=re.IGNORECASE)
+    title = re.sub(r'vostfr|vf', '', title, flags=re.IGNORECASE)
+    title = re.sub(r'\s*-\s*', ' ', title)  # Nettoie les tirets
+    title = re.sub(r'\s+', ' ', title)  # Normalise les espaces
+    title = re.sub(r'\s*\d(?:nd|rd|th)?\s*season\s*', '', title)  # Enlève les numéros de saison
+    title = re.sub(r'\s+\d+$', '', title)  # Enlève les numéros à la fin
+    return title.strip()

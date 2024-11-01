@@ -87,6 +87,26 @@
             font-size: 0.9rem;
             margin-top: 5px;
         }
+
+        .card-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .card-link:hover {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .card-link .anime-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card-link:hover .anime-card {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
+        }
     </style>
 </head>
 <body>
@@ -141,13 +161,22 @@
                     <div class="calendar-grid">
                         {% for anime in animes %}
                             <div class="calendar-card">
-                                <div class="position-relative">
-                                    <img src="{{ anime.image }}" class="calendar-image" alt="{{ anime.title }}">
-                                </div>
-                                <div class="calendar-content">
-                                    <h3 class="calendar-title">{{ anime.title }}</h3>
-                                    <span class="time-badge">{{ anime.time }}</span>
-                                </div>
+                                <a href="{{ url_for('search_anime', title=anime.title) }}" class="card-link">
+                                    <div class="position-relative">
+                                        <img src="{{ anime.image }}" class="calendar-image" alt="{{ anime.title }}">
+                                        {% if session.user_id %}
+                                        <button onclick="toggleFavorite('{{ anime.title }}', this); event.stopPropagation();" 
+                                                class="btn btn-favorite {% if anime.is_favorite %}active{% endif %}"
+                                                title="{% if anime.is_favorite %}Retirer des favoris{% else %}Ajouter aux favoris{% endif %}">
+                                            <i class="fas fa-heart"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                    <div class="calendar-content">
+                                        <h3 class="calendar-title">{{ anime.title }}</h3>
+                                        <span class="time-badge">{{ anime.time }}</span>
+                                    </div>
+                                </a>
                             </div>
                         {% endfor %}
                     </div>
@@ -163,5 +192,28 @@
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+    function toggleFavorite(animeTitle, button) {
+        fetch(`/favorite-by-title/${encodeURIComponent(animeTitle)}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'added') {
+                button.classList.add('active');
+                button.title = 'Retirer des favoris';
+            } else {
+                button.classList.remove('active');
+                button.title = 'Ajouter aux favoris';
+            }
+        })
+        .catch(error => {
+            console.error('Erreur:', error);
+        });
+    }
+    </script>
 </body>
 </html> 

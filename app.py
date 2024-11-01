@@ -213,7 +213,7 @@ def toggle_favorite(anime_id):
 def animes():
     page = request.args.get('page', 1, type=int)
     search = request.args.get('search', '')
-    genre_ids = request.args.getlist('genres', type=int)  # Récupérer les genres sélectionnés
+    genre_ids = request.args.getlist('genres', type=int)
     
     # Récupérer tous les genres pour le filtre
     genres = database.get_all_genres()
@@ -325,6 +325,41 @@ def proxy_video(episode_id, player_index):
     # Ici, vous pouvez implémenter la logique pour récupérer et filtrer le contenu vidéo
     # avant de le renvoyer à l'utilisateur
     return redirect(video_url)
+
+@app.route('/favorite-by-title/<title>', methods=['POST'])
+@login_required
+def toggle_favorite_by_title(title):
+    # Rechercher l'anime par son titre
+    anime = database.get_anime_by_title(title)
+    if anime:
+        if database.is_favorite(session['user_id'], anime.id):
+            database.remove_from_favorites(session['user_id'], anime.id)
+            return {'status': 'removed'}
+        else:
+            database.add_to_favorites(session['user_id'], anime.id)
+            return {'status': 'added'}
+    return {'error': 'Anime not found'}, 404
+
+@app.route('/search-anime/<title>')
+def search_anime(title):
+    # Rechercher l'anime par son titre
+    anime = database.get_anime_by_title(title)
+    if anime:
+        # Si l'anime est trouvé, rediriger vers sa page de détails
+        return redirect(url_for('anime_details', anime_id=anime.id))
+    
+    # Si l'anime n'est pas trouvé, rediriger vers la page de recherche
+    return redirect(url_for('animes', search=title))
+
+@app.route('/unmatched-episodes')
+def unmatched_episodes():
+    page = request.args.get('page', 1, type=int)
+    episodes_data = database.get_unmatched_episodes(page=page)
+    return render_template('unmatched_episodes.html', 
+                         episodes=episodes_data['episodes'],
+                         total_pages=episodes_data['total_pages'],
+                         current_page=page,
+                         total=episodes_data['total'])
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
