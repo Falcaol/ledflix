@@ -12,6 +12,7 @@ from sqlalchemy import func
 from sqlalchemy import Table
 import requests
 from difflib import SequenceMatcher
+from sqlalchemy import Index
 
 load_dotenv()
 
@@ -302,7 +303,7 @@ def get_all_animes(page=1, per_page=12, genre_ids=None):
             func.max(Episode.created_at).label('latest_episode')
         ).group_by(Episode.anime_id).subquery()
         
-        # Requête principale
+        # Requête principale avec jointure sur les genres
         query = session.query(
             Anime,
             func.coalesce(episode_counts.c.count, 0).label('episode_count'),
@@ -313,7 +314,7 @@ def get_all_animes(page=1, per_page=12, genre_ids=None):
         )
         
         # Filtrer par genres si spécifié
-        if genre_ids and genre_ids[0]:  # Vérifier que la liste n'est pas vide
+        if genre_ids and genre_ids[0]:
             query = query.join(anime_genres).join(Genre).\
                     filter(Genre.id.in_(genre_ids))
         
@@ -329,16 +330,19 @@ def get_all_animes(page=1, per_page=12, genre_ids=None):
         
         total_pages = (total + per_page - 1) // per_page
         
-        animes_list = [
-            {
+        animes_list = []
+        for anime, episode_count, _ in animes:
+            # Charger explicitement les genres
+            session.refresh(anime)
+            genres = [genre.name for genre in anime.genres]
+            
+            animes_list.append({
                 'id': anime.id,
                 'title': anime.title,
                 'image': anime.image,
                 'episode_count': int(episode_count),
-                'genres': [genre.name for genre in anime.genres]
-            }
-            for anime, episode_count, _ in animes
-        ]
+                'genres': genres  # Ajouter les genres ici
+            })
         
         return {
             'animes': animes_list,
@@ -397,15 +401,19 @@ def search_animes(query, page=1, per_page=12):
             
         total_pages = (total + per_page - 1) // per_page
         
-        animes_list = [
-            {
+        animes_list = []
+        for anime in animes:
+            # Charger explicitement les genres
+            session.refresh(anime)
+            genres = [genre.name for genre in anime.genres]
+            
+            animes_list.append({
                 'id': anime.id,
                 'title': anime.title,
                 'image': anime.image,
-                'episode_count': len(anime.episodes)
-            }
-            for anime in animes
-        ]
+                'episode_count': len(anime.episodes),
+                'genres': genres  # Ajouter les genres ici
+            })
         
         return {
             'animes': animes_list,
@@ -738,42 +746,6 @@ def get_anime_by_title(title):
     finally:
         session.close()
 
-def get_unmatched_episodes(page=1, per_page=12):
-    session = Session()
-    try:
-        # Récupérer tous les épisodes qui n'ont pas d'anime associé
-        unmatched_episodes = session.query(Episode)\
-            .filter(Episode.anime_id == None)\
-            .order_by(Episode.created_at.desc())\
-            .all()
-        
-        # Pagination manuelle
-        total = len(unmatched_episodes)
-        total_pages = (total + per_page - 1) // per_page
-        start_idx = (page - 1) * per_page
-        end_idx = start_idx + per_page
-        paginated_episodes = unmatched_episodes[start_idx:end_idx]
-        
-        episodes_list = [
-            {
-                'id': episode.id,
-                'title': episode.title,
-                'link': episode.link,
-                'image': episode.image,
-                'created_at': episode.created_at.strftime('%Y-%m-%d %H:%M:%S')
-            }
-            for episode in paginated_episodes
-        ]
-        
-        return {
-            'episodes': episodes_list,
-            'total_pages': total_pages,
-            'current_page': page,
-            'total': total
-        }
-    finally:
-        session.close()
-
 def clean_title(title):
     """Nettoie un titre pour la comparaison"""
     # Supprimer les numéros d'épisode, les caractères spéciaux, etc.
@@ -784,3 +756,7 @@ def clean_title(title):
     title = re.sub(r'\s*\d(?:nd|rd|th)?\s*season\s*', '', title)  # Enlève les numéros de saison
     title = re.sub(r'\s+\d+$', '', title)  # Enlève les numéros à la fin
     return title.strip()
+
+# Ajouter ces index après la définition des modèles
+Index('idx_episode_anime_id', Episode.anime_id)
+Index('idx_episode_created_at', Episode.created_at)

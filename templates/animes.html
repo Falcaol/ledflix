@@ -12,29 +12,68 @@
 <body>
     {% include 'navbar.html' %}
 
+    <!-- Hero Section -->
+    <div class="hero-section">
+        <div class="hero-content">
+            <h1 class="hero-title">Découvrez notre collection d'animes</h1>
+            <p class="hero-subtitle">Explorez notre vaste bibliothèque et trouvez vos prochains animes préférés</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="search-container mb-4">
+            <form class="search-form d-flex" method="GET" action="{{ url_for('animes') }}">
+                <div class="input-group">
+                    <input type="text" 
+                           class="form-control search-input" 
+                           name="search" 
+                           placeholder="Rechercher un anime..."
+                           value="{{ request.args.get('search', '') }}">
+                    <div class="input-group-append">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fas fa-search"></i> Rechercher
+                        </button>
+                    </div>
+                </div>
+                {% if request.args.get('search') %}
+                <a href="{{ url_for('animes') }}" class="btn btn-secondary ml-2">
+                    <i class="fas fa-times"></i> Effacer
+                </a>
+                {% endif %}
+            </form>
+            {% if request.args.get('search') %}
+            <div class="search-results mt-2">
+                Résultats pour "{{ request.args.get('search') }}"
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
     <div class="container mt-4">
         <div class="row">
             <!-- Sidebar avec filtres -->
             <div class="col-md-3">
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Filtres</h5>
+                <div class="filter-card">
+                    <div class="filter-header">
+                        <h5 class="mb-0"><i class="fas fa-filter"></i> Filtres</h5>
                         <button id="reset-filters" class="btn btn-sm btn-outline-danger">
-                            <i class="fas fa-undo"></i> Rinitialiser
+                            <i class="fas fa-undo"></i> Réinitialiser
                         </button>
                     </div>
-                    <div class="card-body">
-                        <h6>Genres</h6>
-                        <div class="genres-filter">
-                            {% for genre in genres %}
-                            <div class="custom-control custom-checkbox">
-                                <input type="checkbox" class="custom-control-input" id="genre-{{ genre.id }}" 
-                                       value="{{ genre.id }}" {% if genre.id in selected_genres %}checked{% endif %}>
-                                <label class="custom-control-label" for="genre-{{ genre.id }}">
-                                    {{ genre.name }}
-                                </label>
+                    <div class="filter-body">
+                        <div class="genre-section">
+                            <h6><i class="fas fa-tags"></i> Genres</h6>
+                            <div class="genres-grid">
+                                {% for genre in genres %}
+                                <div class="genre-item">
+                                    <input type="checkbox" class="genre-checkbox" id="genre-{{ genre.id }}" 
+                                           value="{{ genre.id }}" {% if genre.id in selected_genres %}checked{% endif %}>
+                                    <label class="genre-label" for="genre-{{ genre.id }}">
+                                        {{ genre.name }}
+                                    </label>
+                                </div>
+                                {% endfor %}
                             </div>
-                            {% endfor %}
                         </div>
                     </div>
                 </div>
@@ -42,19 +81,24 @@
 
             <!-- Liste des animes -->
             <div class="col-md-9">
-                <div class="row" id="anime-list">
+                <div class="anime-grid">
                     {% for anime in animes %}
-                    <div class="col-md-4 mb-4">
+                    <div class="anime-item" style="--card-index: {{ loop.index }}">
                         <a href="{{ url_for('anime_details', anime_id=anime.id) }}" class="card-link">
-                            <div class="card anime-card">
-                                <img src="{{ anime.image }}" class="card-img-top" alt="{{ anime.title }}">
-                                <div class="card-body">
-                                    <h5 class="card-title">{{ anime.title }}</h5>
-                                    <div class="genres">
-                                        {% for genre in anime.genres %}
-                                        <span class="badge badge-primary">{{ genre }}</span>
-                                        {% endfor %}
+                            <div class="anime-card">
+                                <div class="card-image">
+                                    <img src="{{ anime.image }}" alt="{{ anime.title }}" loading="lazy">
+                                    <div class="card-overlay">
+                                        <span class="episode-count">{{ anime.episode_count }} épisodes</span>
+                                        <div class="genres-tags">
+                                            {% for genre in anime['genres'][:3] %}
+                                            <span class="genre-tag">{{ genre }}</span>
+                                            {% endfor %}
+                                        </div>
                                     </div>
+                                </div>
+                                <div class="card-content">
+                                    <h3 class="anime-title">{{ anime.title }}</h3>
                                 </div>
                             </div>
                         </a>
@@ -62,13 +106,15 @@
                     {% endfor %}
                 </div>
 
-                <!-- Pagination -->
+                <!-- Pagination améliorée -->
                 {% if total_pages > 1 %}
-                <nav aria-label="Page navigation" class="mt-4">
+                <nav aria-label="Navigation des pages" class="pagination-container">
                     <ul class="pagination justify-content-center">
                         {% for page_num in range(1, total_pages + 1) %}
                         <li class="page-item {% if page_num == current_page %}active{% endif %}">
-                            <a class="page-link" href="{{ url_for('animes', page=page_num, genres=selected_genres) }}">{{ page_num }}</a>
+                            <a class="page-link" href="{{ url_for('animes', page=page_num, genres=selected_genres) }}">
+                                {{ page_num }}
+                            </a>
                         </li>
                         {% endfor %}
                     </ul>
@@ -79,51 +125,44 @@
     </div>
 
     <script>
-    document.querySelectorAll('.custom-control-input').forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            const selectedGenres = Array.from(document.querySelectorAll('.custom-control-input:checked'))
-                .map(cb => cb.value);
-            
-            let url = new URL(window.location.href);
-            url.searchParams.delete('genres');
-            selectedGenres.forEach(genre => {
-                url.searchParams.append('genres', genre);
+        // Script existant pour les filtres
+        document.querySelectorAll('.genre-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const selectedGenres = Array.from(document.querySelectorAll('.genre-checkbox:checked'))
+                    .map(cb => cb.value);
+                
+                let url = new URL(window.location.href);
+                url.searchParams.delete('genres');
+                selectedGenres.forEach(genre => {
+                    url.searchParams.append('genres', genre);
+                });
+                
+                window.location.href = url.toString();
             });
-            
-            window.location.href = url.toString();
         });
-    });
 
-    document.getElementById('reset-filters').addEventListener('click', function() {
-        window.location.href = "{{ url_for('animes') }}";
-    });
-    </script>
+        document.getElementById('reset-filters').addEventListener('click', function() {
+            window.location.href = "{{ url_for('animes') }}";
+        });
 
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-    <script>
-        function toggleFavorite(animeId, button) {
-            fetch(`/favorite/${animeId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'added') {
-                    button.classList.add('active');
-                    button.title = 'Retirer des favoris';
-                } else {
-                    button.classList.remove('active');
-                    button.title = 'Ajouter aux favoris';
+        // Animation au scroll
+        const observerOptions = {
+            root: null,
+            rootMargin: '0px',
+            threshold: 0.1
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
                 }
-            })
-            .catch(error => {
-                console.error('Erreur:', error);
             });
-        }
+        }, observerOptions);
+
+        document.querySelectorAll('.anime-item').forEach(item => {
+            observer.observe(item);
+        });
     </script>
 </body>
 </html> 

@@ -8,11 +8,30 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import database
 import os
 from flask_socketio import SocketIO, emit
-from database import add_episode, get_all_episodes, get_episode_by_id
+from database import (
+    add_episode, 
+    get_all_episodes, 
+    get_episode_by_id,
+    get_all_genres,
+    get_all_animes,
+    search_animes
+)
+from flask_caching import Cache
 
 app = Flask(__name__)
-socketio = SocketIO(app)
+socketio = SocketIO(app, 
+    cors_allowed_origins="*",  # Permet les connexions de n'importe quelle origine
+    ping_timeout=10,  # Timeout du ping en secondes
+    ping_interval=5,  # Intervalle de ping en secondes
+    manage_session=False,  # Désactive la gestion de session par SocketIO
+    async_mode='threading'  # Utiliser threading au lieu de eventlet
+)
 app.secret_key = os.environ.get('SECRET_KEY', 'votre_clé_secrète_par_défaut')
+
+cache = Cache(app, config={
+    'CACHE_TYPE': 'simple',
+    'CACHE_DEFAULT_TIMEOUT': 300
+})
 
 # Définir le décorateur login_required avant de l'utiliser
 def login_required(f):
@@ -96,6 +115,7 @@ def get_weekly_anime():
     return None
 
 @app.route('/')
+@cache.cached(timeout=300)  # Cache pendant 5 minutes
 def index():
     page = request.args.get('page', 1, type=int)
     episodes_data = scrap.get_latest_episodes(page=page)
@@ -212,23 +232,29 @@ def toggle_favorite(anime_id):
 @app.route('/animes')
 def animes():
     page = request.args.get('page', 1, type=int)
-    search = request.args.get('search', '')
-    genre_ids = request.args.getlist('genres', type=int)
+    genre_ids = request.args.getlist('genres')
+    search = request.args.get('search')
     
-    # Récupérer tous les genres pour le filtre
-    genres = database.get_all_genres()
+    # Récupérer tous les genres pour les filtres
+    genres = get_all_genres()
     
+    # Si une recherche est effectuée
     if search:
-        animes_data = database.search_animes(search, page=page)
+        results = search_animes(search, page=page)
+        animes_data = results['animes']
+        total_pages = results['total_pages']
     else:
-        animes_data = database.get_all_animes(page=page, genre_ids=genre_ids)
+        # Sinon, récupérer tous les animes avec pagination
+        results = get_all_animes(page=page, genre_ids=genre_ids)
+        animes_data = results['animes']
+        total_pages = results['total_pages']
     
     return render_template('animes.html',
-                         animes=animes_data['animes'],
-                         total_pages=animes_data['total_pages'],
-                         current_page=page,
+                         animes=animes_data,
                          genres=genres,
-                         selected_genres=genre_ids)
+                         selected_genres=genre_ids,
+                         current_page=page,
+                         total_pages=total_pages)
 
 @app.route('/anime/<int:anime_id>')
 def anime_details(anime_id):
@@ -350,16 +376,6 @@ def search_anime(title):
     
     # Si l'anime n'est pas trouvé, rediriger vers la page de recherche
     return redirect(url_for('animes', search=title))
-
-@app.route('/unmatched-episodes')
-def unmatched_episodes():
-    page = request.args.get('page', 1, type=int)
-    episodes_data = database.get_unmatched_episodes(page=page)
-    return render_template('unmatched_episodes.html', 
-                         episodes=episodes_data['episodes'],
-                         total_pages=episodes_data['total_pages'],
-                         current_page=page,
-                         total=episodes_data['total'])
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)

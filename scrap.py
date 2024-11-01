@@ -17,13 +17,22 @@ def similar(a, b):
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 def clean_title(title):
-    # Nettoie le titre pour une meilleure comparaison
-    # Enlève les numéros d'épisode, les caractères spéciaux, etc.
-    import re
-    title = re.sub(r'episode\s*\d+', '', title, flags=re.IGNORECASE)
-    title = re.sub(r'vostfr', '', title, flags=re.IGNORECASE)
+    """Nettoie le titre pour une meilleure comparaison"""
+    # Enlever les numéros d'épisode et les suffixes communs
+    title = re.sub(r'(?:episode|ep|e)\s*\d+.*', '', title, flags=re.IGNORECASE)
+    title = re.sub(r'(?:vostfr|vf|vo|oav|ova)', '', title, flags=re.IGNORECASE)
+    
+    # Enlever les numéros de saison
+    title = re.sub(r'(?:saison|season|s)\s*\d+', '', title, flags=re.IGNORECASE)
+    
+    # Enlever l'année entre parenthèses
+    title = re.sub(r'\(\d{4}\)', '', title)
+    
+    # Enlever les caractères spéciaux et les espaces multiples
+    title = re.sub(r'[^\w\s-]', ' ', title)
     title = re.sub(r'\s+', ' ', title)
-    return title.strip()
+    
+    return title.strip().lower()
 
 def get_anime_info(title, link, video_links, image_url):
     """Récupère les informations de l'anime depuis l'API AnimeSchedule"""
@@ -42,50 +51,36 @@ def get_anime_info(title, link, video_links, image_url):
             print(f"[DEBUG] Titre original: {title}")
             print(f"[DEBUG] Titre nettoyé: {search_title}")
             
-            # Mappings spéciaux pour certains titres
-            special_mappings = {
-                'danmachi': 'Is It Wrong to Try to Pick Up Girls in a Dungeon?',
-                'dungeon': 'Is It Wrong to Try to Pick Up Girls in a Dungeon?',
-                'rurouni kenshin': 'Rurouni Kenshin -Kyoto Disturbance-',
-                'another journey': 'Another Journey to the West'
-            }
-            
-            # Vérifier d'abord les mappings spéciaux
-            for key, mapped_title in special_mappings.items():
-                if key in search_title.lower():
-                    for anime in animes:
-                        if mapped_title in anime.get('title', '') or mapped_title in anime.get('english', ''):
-                            print(f"[DEBUG] Correspondance spéciale trouvée: {mapped_title}")
-                            return get_anime_details(anime, title, link, video_links, image_url)
-            
-            # Continuer avec la recherche normale...
             best_match = None
             highest_similarity = 0
             
             for anime in animes:
-                # Vérifier tous les titres possibles
+                # Récupérer tous les titres possibles de l'anime
                 titles_to_check = [
                     anime.get('title', ''),
                     anime.get('english', ''),
                     anime.get('romaji', ''),
+                    anime.get('native', '')
                 ]
                 
-                for api_title in titles_to_check:
-                    if not api_title:
-                        continue
-                        
-                    print(f"[DEBUG] Comparaison avec: {api_title}")
-                    similarity = similar(search_title, api_title)
-                    print(f"[DEBUG] Similarité: {similarity}")
+                # Nettoyer chaque titre pour la comparaison
+                clean_titles = [clean_title(t) for t in titles_to_check if t]
+                
+                for api_title in clean_titles:
+                    # Vérifier si l'un contient l'autre
+                    if search_title in api_title or api_title in search_title:
+                        similarity = 0.9  # Boost de similarité si contenu
+                    else:
+                        similarity = similar(search_title, api_title)
+                    
+                    print(f"[DEBUG] Comparaison {search_title} avec {api_title}: {similarity}")
                     
                     if similarity > highest_similarity:
                         highest_similarity = similarity
                         best_match = anime
-                        print(f"[DEBUG] Nouveau meilleur match trouvé: {api_title} ({similarity})")
-                
-            # Si on trouve une correspondance avec l'API
+                        print(f"[DEBUG] Nouveau meilleur match: {api_title} ({similarity})")
+            
             if best_match and highest_similarity > 0.6:
-                print(f"[DEBUG] Match final trouvé: {best_match['title']} (similarité: {highest_similarity})")
                 # Faire un deuxième appel API pour obtenir les détails complets
                 anime_details_url = f"https://animeschedule.net/api/v3/anime/{best_match['route']}"
                 details_response = requests.get(anime_details_url, headers=headers)
@@ -104,27 +99,21 @@ def get_anime_info(title, link, video_links, image_url):
                         'genres': genres
                     }
             else:
-                # Si pas de correspondance, retourner quand même les infos de base
-                print(f"[DEBUG] Pas de correspondance API, utilisation des infos de base")
+                print(f"[DEBUG] Pas de correspondance trouvée pour {title}")
+                # Créer un groupe local avec le titre de base
+                base_title = re.sub(r'\s*(?:episode|ep|e)?\s*\d+.*', '', search_title, flags=re.IGNORECASE)
                 return {
                     'title': title,
                     'link': link,
                     'video_links': video_links,
                     'image': image_url,
-                    'api_title': title,  # Utiliser le titre original
-                    'genres': []  # Liste vide pour les genres
+                    'api_title': base_title,
+                    'genres': []
                 }
+                
     except Exception as e:
         print(f"[ERROR] Erreur lors de la recherche sur AnimeSchedule: {e}")
-        # En cas d'erreur, retourner quand même les infos de base
-        return {
-            'title': title,
-            'link': link,
-            'video_links': video_links,
-            'image': image_url,
-            'api_title': title,
-            'genres': []
-        }
+        return None
 
 def get_anime_details(anime, title, link, video_links, image_url):
     """Récupère les détails complets d'un anime depuis l'API"""
@@ -165,10 +154,17 @@ def get_anime_details(anime, title, link, video_links, image_url):
 
 def update_episodes():
     """Fonction pour mettre à jour la base de données avec les nouveaux épisodes"""
-    episodes_needed = 40  # Augmenté pour récupérer plus d'épisodes
+    episodes_needed = 20  # Réduire le nombre d'épisodes
     page = 1
-    max_pages = 5  # Augmenté pour scraper plus de pages
+    max_pages = 3  # Réduire le nombre de pages
     all_episodes = []
+
+    # Utiliser une seule session requests pour toutes les requêtes
+    session = requests.Session()
+    session.verify = False
+    
+    # Ajouter un cache pour les réponses API
+    api_cache = {}
 
     while len(all_episodes) < episodes_needed and page <= max_pages:
         url = f"https://www.mavanimes.co/page/{page}/"  # Ajout du slash final
