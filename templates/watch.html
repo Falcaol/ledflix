@@ -8,135 +8,122 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <style>
-        .video-container {
-            position: relative;
-            padding-bottom: 56.25%;
-            height: 0;
-            overflow: hidden;
-            margin-bottom: 20px;
-        }
-        
-        .video-container iframe {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
-
-        .video-wrapper {
-            margin-bottom: 30px;
-        }
-
-        .video-title {
-            margin-bottom: 10px;
-            padding: 10px;
-            background-color: var(--bg-card);
-            border-radius: 5px;
-        }
-
-        /* Style pour le système de notation */
-        .rating {
-            display: inline-block;
-            font-size: 24px;
-            cursor: pointer;
-            direction: rtl;
-        }
-
-        .rating .star {
-            color: #ccc;
-            transition: color 0.2s;
-            padding: 0 2px;
-            display: inline-block;
-        }
-
-        .rating .star.active,
-        .rating .star:hover,
-        .rating .star:hover ~ .star {
-            color: #ffd700;
-        }
-
-        .ratings-container {
-            background-color: var(--bg-card);
-            padding: 20px;
-            border-radius: 10px;
-            margin-top: 30px;
-        }
-
-        .ratings-stats {
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-        }
-    </style>
 </head>
 <body>
     {% include 'navbar.html' %}
 
     <div class="container mt-4">
-        <h1>{{ episode.title }}</h1>
-
-        {% if episode.crunchyroll %}
-        <div class="crunchyroll-container mb-4">
-            <h4>Regarder sur Crunchyroll</h4>
-            <a href="{{ episode.crunchyroll }}" target="_blank" class="btn btn-crunchyroll">
-                <i class="fas fa-play"></i> Voir sur Crunchyroll
+        <!-- Titre de l'épisode -->
+        <div class="episode-header">
+            <h1 class="episode-title">{{ episode.title }}</h1>
+            {% if episode.crunchyroll %}
+            <a href="{{ episode.crunchyroll }}" target="_blank" class="crunchyroll-btn">
+                <i class="fas fa-external-link-alt"></i>
+                Voir sur Crunchyroll
             </a>
+            {% endif %}
         </div>
-        {% endif %}
 
-        {% for link in episode.video_links %}
-        <div class="video-wrapper mb-4">
-            <div class="video-title">Lecteur {{ loop.index }}</div>
-            <div class="video-container">
-                <iframe src="{{ link }}" allowfullscreen></iframe>
+        <!-- Conteneur des lecteurs -->
+        <div class="players-container">
+            <!-- Sélecteur de lecteur -->
+            <div class="player-selector">
+                {% for i in range(episode.video_links|length) %}
+                <button class="player-btn {% if loop.first %}active{% endif %}" 
+                        onclick="switchPlayer({{ i }})">
+                    <i class="fas fa-play-circle"></i>
+                    Lecteur {{ i + 1 }}
+                </button>
+                {% endfor %}
+            </div>
+
+            <!-- Lecteurs vidéo -->
+            {% for video_link in episode.video_links %}
+            <div class="video-player {% if loop.first %}active{% endif %}" id="player-{{ loop.index0 }}">
+                <iframe src="{{ video_link }}" 
+                        frameborder="0" 
+                        allowfullscreen
+                        loading="lazy">
+                </iframe>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Section des commentaires et notes -->
+        <div class="interaction-section">
+            <div class="rating-section">
+                <h3>Noter cet épisode</h3>
+                <div class="stars">
+                    {% for i in range(5) %}
+                    <i class="far fa-star" data-rating="{{ i + 1 }}"></i>
+                    {% endfor %}
+                </div>
+                <div class="rating-info">
+                    <span class="average-rating">Note moyenne: {{ ratings.average }}/5</span>
+                    <span class="rating-count">({{ ratings.count }} votes)</span>
+                </div>
             </div>
         </div>
-        {% endfor %}
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const stars = document.querySelectorAll('.star');
-            const averageRating = {{ ratings.average if ratings else 0 }};
+        function switchPlayer(index) {
+            // Cacher tous les lecteurs
+            document.querySelectorAll('.video-player').forEach(player => {
+                player.classList.remove('active');
+            });
+            
+            // Désactiver tous les boutons
+            document.querySelectorAll('.player-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Afficher le lecteur sélectionné
+            document.getElementById(`player-${index}`).classList.add('active');
+            
+            // Activer le bouton correspondant
+            document.querySelectorAll('.player-btn')[index].classList.add('active');
+        }
 
-            // Mettre à jour l'affichage initial des étoiles
-            updateStars(averageRating);
-
-            stars.forEach(star => {
-                star.addEventListener('click', function() {
-                    const value = parseFloat(this.dataset.value);
-                    
-                    // Envoyer la note au serveur
-                    fetch('/rate/{{ episode.id }}', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ rating: value })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        // Mettre à jour l'affichage
-                        document.getElementById('average-rating').textContent = data.average;
-                        document.getElementById('ratings-count').textContent = data.count;
-                        updateStars(data.average);
-                    });
-                });
+        // Système de notation
+        document.querySelectorAll('.stars i').forEach(star => {
+            star.addEventListener('mouseover', function() {
+                const rating = this.dataset.rating;
+                updateStars(rating);
             });
 
-            function updateStars(rating) {
-                stars.forEach(star => {
-                    const value = parseFloat(star.dataset.value);
-                    star.classList.remove('active');
-                    if (value <= rating) {
-                        star.classList.add('active');
-                    }
-                });
-            }
+            star.addEventListener('click', function() {
+                const rating = this.dataset.rating;
+                submitRating(rating);
+            });
         });
+
+        function updateStars(rating) {
+            document.querySelectorAll('.stars i').forEach((star, index) => {
+                if (index < rating) {
+                    star.classList.remove('far');
+                    star.classList.add('fas');
+                } else {
+                    star.classList.remove('fas');
+                    star.classList.add('far');
+                }
+            });
+        }
+
+        function submitRating(rating) {
+            fetch('/rate/{{ episode.id }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ rating: rating })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.querySelector('.average-rating').textContent = `Note moyenne: ${data.average}/5`;
+                document.querySelector('.rating-count').textContent = `(${data.count} votes)`;
+            });
+        }
     </script>
 </body>
 </html>

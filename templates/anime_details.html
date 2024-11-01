@@ -6,73 +6,50 @@
     <title>{{ anime.title }}</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     {% include 'navbar.html' %}
 
-    <div class="container mt-4">
-        <div class="row">
-            <div class="col-md-4">
-                <div class="card anime-card">
-                    <img src="{{ anime.image }}" class="card-img-top" alt="{{ anime.title }}">
-                    <div class="card-body">
-                        <h1 class="card-title">{{ anime.title }}</h1>
-                        {% if session.user_id %}
-                        <button onclick="toggleFavorite({{ anime.id }}, this)" 
-                                class="btn btn-favorite {% if is_favorite %}active{% endif %}"
-                                title="{% if is_favorite %}Retirer des favoris{% else %}Ajouter aux favoris{% endif %}">
-                            <i class="fas fa-heart"></i>
-                        </button>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-8">
-                <h2>Épisodes</h2>
-                <div class="list-group">
-                    {% for episode in episodes %}
-                    <div class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <a href="{{ url_for('watch_episode', episode_id=episode.id) }}" class="episode-link">
-                                {{ episode.title }}
-                            </a>
-                            {% if episode.crunchyroll %}
-                            <a href="{{ episode.crunchyroll }}" target="_blank" class="btn btn-sm btn-crunchyroll">
-                                <i class="fas fa-play"></i> Crunchyroll
-                            </a>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endfor %}
+    <!-- Hero Section avec l'image de l'anime -->
+    <div class="anime-hero" style="background-image: linear-gradient(rgba(0,0,0,0.7), var(--bg-dark)), url('{{ anime.image }}');">
+        <div class="container">
+            <div class="anime-hero-content">
+                <h1 class="anime-title">{{ anime.title }}</h1>
+                <div class="anime-info">
+                    <span class="episode-count">{{ episodes|length }} épisodes</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        function toggleFavorite(animeId, button) {
-            fetch(`/favorite/${animeId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'added') {
-                    button.classList.add('active');
-                    button.title = 'Retirer des favoris';
-                } else {
-                    button.classList.remove('active');
-                    button.title = 'Ajouter aux favoris';
-                }
-            })
-            .catch(error => {
-                console.error('Erreur:', error);
-            });
-        }
-    </script>
+    <div class="container mt-4">
+        <!-- Grille des épisodes -->
+        <div class="episodes-grid">
+            {% for episode in episodes|reverse %}
+            <div class="episode-card" style="--card-index: {{ loop.index }}">
+                <div class="episode-thumbnail">
+                    <img src="{{ episode.image }}" alt="{{ episode.title }}" loading="lazy">
+                    <div class="episode-overlay">
+                        <a href="{{ url_for('watch_episode', episode_id=episode.id) }}" class="watch-btn">
+                            <i class="fas fa-play"></i>
+                            Regarder
+                        </a>
+                    </div>
+                </div>
+                <div class="episode-info">
+                    <h3 class="episode-title">{{ episode.title }}</h3>
+                    {% if episode.crunchyroll %}
+                    <a href="{{ episode.crunchyroll }}" target="_blank" class="crunchyroll-link">
+                        <i class="fas fa-external-link-alt"></i>
+                        Voir sur Crunchyroll
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
 </body>
 </html> 
