@@ -7,49 +7,210 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     {% include 'navbar.html' %}
 
     <div class="container mt-4">
-        <div class="row">
-            <div class="col-md-4">
-                <div class="card anime-card">
-                    <img src="{{ anime.image }}" class="card-img-top" alt="{{ anime.title }}">
-                    <div class="card-body">
-                        <h1 class="card-title">{{ anime.title }}</h1>
-                        {% if session.user_id %}
-                        <button onclick="toggleFavorite({{ anime.id }}, this)" 
-                                class="btn btn-favorite {% if is_favorite %}active{% endif %}"
-                                title="{% if is_favorite %}Retirer des favoris{% else %}Ajouter aux favoris{% endif %}">
-                            <i class="fas fa-heart"></i>
-                        </button>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-8">
-                <h2>Épisodes</h2>
-                <div class="list-group">
-                    {% for episode in episodes %}
-                    <div class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <a href="{{ url_for('watch_episode', episode_id=episode.id) }}" class="episode-link">
-                                {{ episode.title }}
-                            </a>
-                            {% if episode.crunchyroll %}
-                            <a href="{{ episode.crunchyroll }}" target="_blank" class="btn btn-sm btn-crunchyroll">
-                                <i class="fas fa-play"></i> Crunchyroll
-                            </a>
-                            {% endif %}
+        <h1>{{ anime.title }}</h1>
+        
+        <!-- Section principale de l'anime -->
+        <div class="anime-main-content">
+            <!-- Section Media (Synopsis + Trailer) -->
+            {% if anime.synopsis or anime.trailer %}
+            <div class="media-section">
+                <div class="section-divider"></div>
+                
+                <div class="media-container">
+                    <!-- Trailer -->
+                    {% if anime.trailer %}
+                    <div class="trailer-section">
+                        <div class="content-card">
+                            <div class="card-header">
+                                <i class="fas fa-play-circle"></i>
+                                <h3>Trailer</h3>
+                            </div>
+                            <div class="trailer-player">
+                                <iframe src="{{ anime.trailer }}" allowfullscreen></iframe>
+                            </div>
                         </div>
                     </div>
-                    {% endfor %}
+                    {% endif %}
+
+                    <!-- Synopsis -->
+                    {% if anime.synopsis %}
+                    <div class="synopsis-section">
+                        <div class="content-card">
+                            <div class="card-header">
+                                <i class="fas fa-book"></i>
+                                <h3>Synopsis</h3>
+                            </div>
+                            <div class="synopsis-content">
+                                {{ anime.synopsis | safe }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Section Épisodes -->
+            <div class="episodes-section">
+                <div class="section-divider"></div>
+                
+                <!-- Liste des épisodes -->
+                <div class="episodes-container">
+                    <div class="row">
+                        {% for episode in anime.episodes %}
+                        <div class="col-md-3 mb-4">
+                            <div class="card">
+                                <img src="{{ episode.image }}" class="card-img-top" alt="{{ episode.title }}">
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ episode.title }}</h5>
+                                    <a href="{{ url_for('watch_episode', episode_id=episode.id) }}" class="btn btn-primary">
+                                        Regarder
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Style CSS à ajouter -->
+    <style>
+    :root {
+        --primary-rgb: 97, 102, 255; /* Ajustez selon votre couleur primaire */
+    }
+
+    .anime-main-content {
+        padding: 2rem 0;
+    }
+
+    .section-divider {
+        height: 1px;
+        background: linear-gradient(
+            to right,
+            transparent,
+            var(--primary) 50%,
+            transparent
+        );
+        margin: 3rem 0 2rem;
+        opacity: 0.5;
+    }
+
+    .media-container {
+        display: grid;
+        grid-template-columns: 3fr 2fr;
+        gap: 2rem;
+        padding: 0 1.5rem;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .content-card {
+        background: var(--bg-card);
+        border-radius: 15px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        height: 100%;
+    }
+
+    .card-header {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        padding: 1rem 1.5rem;
+        background: rgba(var(--primary-rgb), 0.1);
+        border-bottom: 2px solid var(--primary);
+    }
+
+    .card-header i {
+        color: var(--primary);
+        font-size: 1.2rem;
+    }
+
+    .card-header h3 {
+        margin: 0;
+        font-size: 1.2rem;
+        color: var(--text-primary);
+    }
+
+    .trailer-player {
+        position: relative;
+        padding-bottom: 56.25%;
+        height: 0;
+    }
+
+    .trailer-player iframe {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        border: none;
+    }
+
+    .synopsis-content {
+        padding: 1.5rem;
+        color: var(--text-secondary);
+        line-height: 1.7;
+        font-size: 0.95rem;
+        max-height: 350px;
+        overflow-y: auto;
+    }
+
+    .synopsis-content::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .synopsis-content::-webkit-scrollbar-track {
+        background: var(--bg-secondary);
+    }
+
+    .synopsis-content::-webkit-scrollbar-thumb {
+        background: var(--primary);
+        border-radius: 4px;
+    }
+
+    /* Animation d'entrée */
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .media-section, .episodes-section {
+        animation: fadeInUp 0.6s ease-out forwards;
+    }
+
+    /* Responsive */
+    @media (max-width: 991px) {
+        .media-container {
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+            padding: 0 1rem;
+        }
+
+        .synopsis-content {
+            max-height: 250px;
+        }
+
+        .section-divider {
+            margin: 2rem 0 1.5rem;
+        }
+    }
+    </style>
 
     <script>
         function toggleFavorite(animeId, button) {

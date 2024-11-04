@@ -13,6 +13,8 @@ from sqlalchemy import Table
 import requests
 from difflib import SequenceMatcher
 from sqlalchemy import Index
+from sqlalchemy.orm import joinedload
+import time
 
 load_dotenv()
 
@@ -760,3 +762,180 @@ def clean_title(title):
 # Ajouter ces index après la définition des modèles
 Index('idx_episode_anime_id', Episode.anime_id)
 Index('idx_episode_created_at', Episode.created_at)
+
+def get_episodes_by_anime_id(anime_id):
+    session = Session()
+    try:
+        # Récupérer l'anime et ses épisodes
+        anime = session.query(Anime).get(anime_id)
+        if not anime:
+            return []
+        
+        # S'assurer que les épisodes appartiennent bien à cet anime
+        episodes = session.query(Episode)\
+            .filter(Episode.anime_id == anime_id)\
+            .order_by(Episode.created_at.desc())\
+            .all()
+        
+        return [{
+            'id': episode.id,
+            'title': episode.title,
+            'image': episode.image,
+            'video_links': json.loads(episode.video_links) if episode.video_links else [],
+            'created_at': episode.created_at
+        } for episode in episodes]
+    finally:
+        session.close()
+
+def clean_title_for_search(title):
+    """Nettoie et prépare différentes variantes du titre pour la recherche"""
+    variants = []
+    
+    # Titre original
+    variants.append(title)
+    
+    # Variantes communes
+    title_lower = title.lower()
+    variants.extend([
+        title_lower,
+        title_lower.replace('2', 'season-2'),
+        title_lower.replace(' 2', ' season 2'),
+        'tower-of-god-2',  # Spécifique pour Kami no Tou
+        'tower-of-god-season-2'
+    ])
+    
+    # Supprimer les caractères spéciaux et espaces
+    clean = re.sub(r'[^\w\s-]', '', title_lower)
+    variants.append(clean)
+    
+    print(f"[DEBUG] Variantes de titre à essayer: {variants}")
+    return variants
+
+def get_anime_route_from_timetable(title):
+    """Récupère la route correcte depuis l'API timetables/sub"""
+    headers = {
+        "Authorization": "r4hbdBLy5GHD4vo4XqDBkpR2ddtsYh"  # Remplacez par votre clé API
+    }
+    
+    try:
+        response = requests.get("https://animeschedule.net/api/v3/timetables/sub", headers=headers)
+        if response.status_code == 200:
+            animes = response.json()
+            title_lower = title.lower().strip()
+            print(f"[DEBUG] Recherche de correspondance pour: {title_lower}")
+            
+            for anime in animes:
+                anime_title = anime['title'].lower().strip()
+                if title_lower in anime_title or anime_title in title_lower:
+                    print(f"[DEBUG] Route trouvée: {anime['route']} pour {anime['title']}")
+                    return anime['route']
+                    
+            print("[DEBUG] Aucune correspondance trouvée dans timetables")
+    except Exception as e:
+        print(f"[ERROR] Erreur timetables: {str(e)}")
+    return None
+
+def get_anime_details_from_api(title):
+    """Récupère les détails d'un anime depuis l'API AnimSchedule"""
+    headers = {
+        "Authorization": "Bearer YOUR_API_KEY"  # Remplacez par votre clé API
+    }
+    
+    route = get_anime_route_from_timetable(title)
+    if route:
+        url = f"https://animeschedule.net/api/v3/anime/{route}"
+        print(f"[DEBUG] Appel API avec URL: {url}")
+        
+        try:
+            response = requests.get(url, headers=headers)
+            if response.status_code == 200:
+                print("[DEBUG] Réponse API réussie")
+                return response.json()
+            else:
+                print(f"[ERROR] Échec API: {response.status_code}")
+        except Exception as e:
+            print(f"[ERROR] Erreur API: {str(e)}")
+    
+    return None
+
+def get_anime_details(anime_id):
+    session = Session()
+    try:
+        anime = session.query(Anime)\
+            .options(joinedload(Anime.genres))\
+            .options(joinedload(Anime.episodes))\
+            .get(anime_id)
+            
+        if not anime:
+            return None
+
+        anime_dict = {
+            'id': anime.id,
+            'title': anime.title,
+            'image': anime.image,
+            'genres': [genre.name for genre in anime.genres],
+            'episodes': [{
+                'id': episode.id,
+                'title': episode.title,
+                'image': episode.image,
+                'video_links': json.loads(episode.video_links) if episode.video_links else [],
+                'created_at': episode.created_at
+            } for episode in anime.episodes],
+            'synopsis': None,
+            'trailer': None
+        }
+
+        try:
+            # 1. D'abord vérifier dans timetables/sub
+            headers = {
+                "Authorization": "Bearer r4hbdBLy5GHD4vo4XqDBkpR2ddtsYh"
+            }
+            timetables_response = requests.get("https://animeschedule.net/api/v3/timetables/sub", headers=headers)
+            
+            if timetables_response.status_code == 200:
+                animes = timetables_response.json()
+                anime_found = None
+                
+                # Chercher une correspondance
+                for a in animes:
+                    if a['title'].lower() == anime.title.lower():
+                        anime_found = a
+                        break
+                
+                # Si on trouve l'anime dans timetables
+                if anime_found:
+                    # 2. Récupérer les détails avec la route trouvée
+                    details_url = f"https://animeschedule.net/api/v3/anime/{anime_found['route']}"
+                    details_response = requests.get(details_url, headers=headers)
+                    
+                    if details_response.status_code == 200:
+                        anime_data = details_response.json()
+                        if 'websites' in anime_data and 'mal' in anime_data['websites']:
+                            # 3. Extraction de l'ID MAL
+                            mal_link = anime_data['websites']['mal']
+                            mal_id = re.search(r'anime/(\d+)/', mal_link).group(1)
+                            
+                            # 4. Appel à Jikan
+                            time.sleep(1)
+                            jikan_response = requests.get(f"https://api.jikan.moe/v4/anime/{mal_id}")
+                            
+                            if jikan_response.status_code == 200:
+                                jikan_data = jikan_response.json()['data']
+                                
+                                # Récupération du synopsis
+                                if 'synopsis' in jikan_data:
+                                    anime_dict['synopsis'] = jikan_data['synopsis']
+                                
+                                # Récupération du trailer
+                                if 'trailer' in jikan_data and jikan_data['trailer']:
+                                    trailer_data = jikan_data['trailer']
+                                    if 'embed_url' in trailer_data:
+                                        anime_dict['trailer'] = trailer_data['embed_url']
+                
+        except Exception as e:
+            print(f"[ERROR] {str(e)}")
+            
+        return anime_dict
+        
+    finally:
+        session.close()

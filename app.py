@@ -14,7 +14,10 @@ from database import (
     get_episode_by_id,
     get_all_genres,
     get_all_animes,
-    search_animes
+    search_animes,
+    get_episodes_by_anime_id,
+    get_anime_details,
+    is_favorite
 )
 from flask_caching import Cache
 
@@ -258,12 +261,18 @@ def animes():
 
 @app.route('/anime/<int:anime_id>')
 def anime_details(anime_id):
-    anime_data = database.get_anime_episodes(anime_id)
-    if anime_data is None:
+    anime = get_anime_details(anime_id)
+    if not anime:
         abort(404)
+        
+    # Vérifier si l'anime est dans les favoris de l'utilisateur
+    is_favorite = False
+    if 'user_id' in session:
+        is_favorite = is_favorite(session['user_id'], anime_id)
+        
     return render_template('anime_details.html', 
-                         anime=anime_data['anime'],
-                         episodes=anime_data['episodes'])
+                         anime=anime,
+                         is_favorite=is_favorite)
 
 @app.route('/force-update')
 def force_update():
